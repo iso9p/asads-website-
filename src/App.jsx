@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { FaHome, FaGift, FaBell, FaBars, FaUser } from 'react-icons/fa';
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('home');
+
   const styles = {
     container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0 },
     topBar: { backgroundColor: '#1a237e', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', position: 'sticky', top: 0, zIndex: 100 },
-    icons: { display: 'flex', gap: '15px', fontSize: '20px' },
+    icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer' },
     logo: { fontSize: '18px', fontWeight: 'bold' },
     main: { padding: '20px', paddingBottom: '80px' },
     banner: { background: 'linear-gradient(135deg, #3949ab, #1a237e)', color: 'white', padding: '30px 20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
@@ -15,41 +18,97 @@ function App() {
     card: { background: 'white', padding: '20px', borderRadius: '10px', textAlign: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', fontWeight: 'bold', color: '#333' },
     bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)' },
     navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', color: '#666', gap: '5px', cursor: 'pointer' },
-    navActive: { color: '#1a237e', fontWeight: 'bold' }
+    navActive: { color: '#1a237e', fontWeight: 'bold' },
+    
+    // تنسيقات صفحة الهدايا
+    giftCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    giftTitle: { fontSize: '16px', fontWeight: 'bold', margin: '0 0 5px 0', color: '#1a237e' },
+    giftPoints: { fontSize: '14px', color: '#ffb300', fontWeight: 'bold', margin: 0 },
+    btnRedeem: { backgroundColor: '#2dd36f', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }
+  };
+
+  const renderPage = () => {
+    if (currentPage === 'home') {
+      return (
+        <>
+          <div style={styles.banner}>
+            <h1 style={styles.bannerH1}>مرحباً بك في مجمع اسعد العزاوي</h1>
+            <p style={styles.bannerP}>اكتشف أفضل العروض والخدمات</p>
+          </div>
+          <div style={styles.sectionTitle}>
+            <h3>الوكلاء</h3>
+            <span style={{color: '#007bff', cursor: 'pointer', fontSize: '14px'}}>عرض المزيد</span>
+          </div>
+          <div style={styles.grid}>
+            <div style={styles.card}>وكيل 1</div>
+            <div style={styles.card}>وكيل 2</div>
+            <div style={styles.card}>وكيل 3</div>
+          </div>
+        </>
+      );
+    } else if (currentPage === 'gifts') {
+      return (
+        <>
+          <h2 style={{color: '#1a237e', marginBottom: '20px'}}>متجر الهدايا</h2>
+          
+          <div style={styles.giftCard}>
+            <div>
+              <p style={styles.giftTitle}>كوب قهوة مجاني</p>
+              <p style={styles.giftPoints}>50 نقطة</p>
+            </div>
+            <button style={styles.btnRedeem}>استبدال</button>
+          </div>
+
+          <div style={styles.giftCard}>
+            <div>
+              <p style={styles.giftTitle}>قسيمة شراء 10 دينار</p>
+              <p style={styles.giftPoints}>100 نقطة</p>
+            </div>
+            <button style={styles.btnRedeem}>استبدال</button>
+          </div>
+
+          <div style={styles.giftCard}>
+            <div>
+              <p style={styles.giftTitle}>شاحن سريع</p>
+              <p style={styles.giftPoints}>250 نقطة</p>
+            </div>
+            <button style={styles.btnRedeem}>استبدال</button>
+          </div>
+        </>
+      );
+    }
+    
+    return <div style={{textAlign: 'center', marginTop: '50px', color: '#666'}}>هذه الصفحة قيد الإنشاء...</div>;
   };
 
   return (
     <div style={styles.container}>
       <header style={styles.topBar}>
         <div style={styles.icons}>
-          <FaBars /><FaBell /><FaGift />
+          <FaBars onClick={() => setCurrentPage('menu')} />
+          <FaBell />
+          <FaGift onClick={() => setCurrentPage('gifts')} />
         </div>
         <div style={styles.logo}>مجمع اسعد العزاوي</div>
       </header>
 
       <main style={styles.main}>
-        <div style={styles.banner}>
-          <h1 style={styles.bannerH1}>مرحباً بك في مجمع اسعد العزاوي</h1>
-          <p style={styles.bannerP}>اكتشف أفضل العروض والخدمات</p>
-        </div>
-
-        <div style={styles.sectionTitle}>
-          <h3>الوكلاء</h3>
-          <span style={{color: '#007bff', cursor: 'pointer', fontSize: '14px'}}>عرض المزيد</span>
-        </div>
-        
-        <div style={styles.grid}>
-          <div style={styles.card}>وكيل 1</div>
-          <div style={styles.card}>وكيل 2</div>
-          <div style={styles.card}>وكيل 3</div>
-        </div>
+        {renderPage()}
       </main>
 
       <nav style={styles.bottomNav}>
-        <div style={{...styles.navItem, ...styles.navActive}}><FaHome /> الرئيسية</div>
-        <div style={styles.navItem}><FaGift /> الهدايا</div>
-        <div style={styles.navItem}><FaUser /> حسابي</div>
-        <div style={styles.navItem}><FaBars /> القائمة</div>
+        <div style={{...styles.navItem, ...(currentPage === 'home' ? styles.navActive : {})}} onClick={() => setCurrentPage('home')}>
+          <FaHome /> الرئيسية
+        </div>
+        <div style={{...styles.navItem, ...(currentPage === 'gifts' ? styles.navActive : {})}} onClick={() => setCurrentPage('gifts')}>
+          <FaGift /> الهدايا
+        </div>
+        <div style={{...styles.navItem, ...(currentPage === 'account' ? styles.navActive : {})}} onClick={() => setCurrentPage('account')}>
+          <FaUser /> حسابي
+        </div>
+        <div style={{...styles.navItem, ...(currentPage === 'menu' ? styles.navActive : {})}} onClick={() => setCurrentPage('menu')}>
+          <FaBars /> القائمة
+        </div>
       </nav>
     </div>
   );
