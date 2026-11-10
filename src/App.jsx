@@ -1,11 +1,57 @@
 import { useState } from 'react';
 import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus } from 'react-icons/fa';
+import { initializeApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+
+// إعدادات Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyAGc398LhymHbUGrIQl7VaCxXFVWeLLrzU",
+  authDomain: "asads-mall.firebaseapp.com",
+  projectId: "asads-mall",
+  storageBucket: "asads-mall.firebasestorage.app",
+  messagingSenderId: "343041216354",
+  appId: "1:343041216354:web:6113e7695d544897d6663b"
+};
+
+// تهيئة Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
+  
+  // متغيرات لحفظ المدخلات
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+
+  // دالة تسجيل الدخول
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setMessage('تم تسجيل الدخول بنجاح!');
+      setCurrentPage('home'); // العودة للرئيسية
+    } catch (error) {
+      setMessage('خطأ: ' + error.message);
+    }
+  };
+
+  // دالة إنشاء حساب
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      setMessage('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+      setCurrentPage('account');
+    } catch (error) {
+      setMessage('خطأ: ' + error.message);
+    }
+  };
 
   const styles = {
-    container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0 },
+    container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0, color: '#333' },
     topBar: { backgroundColor: '#1a237e', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', position: 'sticky', top: 0, zIndex: 100 },
     icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer' },
     logo: { fontSize: '18px', fontWeight: 'bold' },
@@ -23,14 +69,13 @@ function App() {
     giftTitle: { fontSize: '16px', fontWeight: 'bold', margin: '0 0 5px 0', color: '#1a237e' },
     giftPoints: { fontSize: '14px', color: '#ffb300', fontWeight: 'bold', margin: 0 },
     btnRedeem: { backgroundColor: '#2dd36f', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-    
-    // تنسيقات النماذج
     formBox: { background: 'white', padding: '30px 20px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', maxWidth: '400px', margin: '0 auto' },
     formTitle: { textAlign: 'center', color: '#1a237e', marginBottom: '20px' },
     inputGroup: { display: 'flex', alignItems: 'center', backgroundColor: '#f4f6f9', borderRadius: '8px', padding: '10px', marginBottom: '15px', border: '1px solid #ddd' },
     input: { border: 'none', background: 'transparent', outline: 'none', width: '100%', marginLeft: '10px', fontFamily: 'inherit', color: '#333' },
     btnSubmit: { width: '100%', backgroundColor: '#1a237e', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
-    linkText: { textAlign: 'center', marginTop: '15px', fontSize: '14px', color: '#007bff', cursor: 'pointer' }
+    linkText: { textAlign: 'center', marginTop: '15px', fontSize: '14px', color: '#007bff', cursor: 'pointer' },
+    messageBox: { textAlign: 'center', marginTop: '15px', color: 'red', fontWeight: 'bold' }
   };
 
   const renderPage = () => {
@@ -63,28 +108,24 @@ function App() {
             </div>
             <button style={styles.btnRedeem}>استبدال</button>
           </div>
-          <div style={styles.giftCard}>
-            <div>
-              <p style={styles.giftTitle}>قسيمة شراء 10 دينار</p>
-              <p style={styles.giftPoints}>100 نقطة</p>
-            </div>
-            <button style={styles.btnRedeem}>استبدال</button>
-          </div>
         </>
       );
     } else if (currentPage === 'account') {
       return (
         <div style={styles.formBox}>
           <h2 style={styles.formTitle}>تسجيل الدخول</h2>
-          <div style={styles.inputGroup}>
-            <FaEnvelope color="#666" />
-            <input type="email" placeholder="البريد الإلكتروني" style={styles.input} />
-          </div>
-          <div style={styles.inputGroup}>
-            <FaLock color="#666" />
-            <input type="password" placeholder="كلمة المرور" style={styles.input} />
-          </div>
-          <button style={styles.btnSubmit}>دخول</button>
+          <form onSubmit={handleLogin}>
+            <div style={styles.inputGroup}>
+              <FaEnvelope color="#666" />
+              <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div style={styles.inputGroup}>
+              <FaLock color="#666" />
+              <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+            <button type="submit" style={styles.btnSubmit}>دخول</button>
+          </form>
+          {message && <p style={styles.messageBox}>{message}</p>}
           <p style={styles.linkText} onClick={() => setCurrentPage('register')}>ليس لديك حساب؟ إنشاء حساب جديد</p>
         </div>
       );
@@ -92,24 +133,26 @@ function App() {
       return (
         <div style={styles.formBox}>
           <h2 style={styles.formTitle}>إنشاء حساب جديد</h2>
-          <div style={styles.inputGroup}>
-            <FaUserPlus color="#666" />
-            <input type="text" placeholder="الاسم الكامل" style={styles.input} />
-          </div>
-          <div style={styles.inputGroup}>
-            <FaEnvelope color="#666" />
-            <input type="email" placeholder="البريد الإلكتروني" style={styles.input} />
-          </div>
-          <div style={styles.inputGroup}>
-            <FaLock color="#666" />
-            <input type="password" placeholder="كلمة المرور" style={styles.input} />
-          </div>
-          <button style={styles.btnSubmit}>تسجيل</button>
+          <form onSubmit={handleRegister}>
+            <div style={styles.inputGroup}>
+              <FaUserPlus color="#666" />
+              <input type="text" placeholder="الاسم الكامل" style={styles.input} value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div style={styles.inputGroup}>
+              <FaEnvelope color="#666" />
+              <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div style={styles.inputGroup}>
+              <FaLock color="#666" />
+              <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+            <button type="submit" style={styles.btnSubmit}>تسجيل</button>
+          </form>
+          {message && <p style={styles.messageBox}>{message}</p>}
           <p style={styles.linkText} onClick={() => setCurrentPage('account')}>لديك حساب بالفعل؟ تسجيل الدخول</p>
         </div>
       );
     }
-    
     return <div style={{textAlign: 'center', marginTop: '50px', color: '#666'}}>هذه الصفحة قيد الإنشاء...</div>;
   };
 
@@ -123,24 +166,12 @@ function App() {
         </div>
         <div style={styles.logo}>مجمع اسعد العزاوي</div>
       </header>
-
-      <main style={styles.main}>
-        {renderPage()}
-      </main>
-
+      <main style={styles.main}>{renderPage()}</main>
       <nav style={styles.bottomNav}>
-        <div style={{...styles.navItem, ...(currentPage === 'home' ? styles.navActive : {})}} onClick={() => setCurrentPage('home')}>
-          <FaHome /> الرئيسية
-        </div>
-        <div style={{...styles.navItem, ...(currentPage === 'gifts' ? styles.navActive : {})}} onClick={() => setCurrentPage('gifts')}>
-          <FaGift /> الهدايا
-        </div>
-        <div style={{...styles.navItem, ...(currentPage === 'account' ? styles.navActive : {})}} onClick={() => setCurrentPage('account')}>
-          <FaUser /> حسابي
-        </div>
-        <div style={{...styles.navItem, ...(currentPage === 'menu' ? styles.navActive : {})}} onClick={() => setCurrentPage('menu')}>
-          <FaBars /> القائمة
-        </div>
+        <div style={{...styles.navItem, ...(currentPage === 'home' ? styles.navActive : {})}} onClick={() => setCurrentPage('home')}><FaHome /> الرئيسية</div>
+        <div style={{...styles.navItem, ...(currentPage === 'gifts' ? styles.navActive : {})}} onClick={() => setCurrentPage('gifts')}><FaGift /> الهدايا</div>
+        <div style={{...styles.navItem, ...(currentPage === 'account' || currentPage === 'register' ? styles.navActive : {})}} onClick={() => setCurrentPage('account')}><FaUser /> حسابي</div>
+        <div style={{...styles.navItem, ...(currentPage === 'menu' ? styles.navActive : {})}} onClick={() => setCurrentPage('menu')}><FaBars /> القائمة</div>
       </nav>
     </div>
   );
