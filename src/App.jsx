@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
-// إعدادات Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyAGc398LhymHbUGrIQl7VaCxXFVWeLLrzU",
   authDomain: "asads-mall.firebaseapp.com",
@@ -13,32 +12,37 @@ const firebaseConfig = {
   appId: "1:343041216354:web:6113e7695d544897d6663b"
 };
 
-// تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
+  const [user, setUser] = useState(null); // لحفظ بيانات المستخدم
   
-  // متغيرات لحفظ المدخلات
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
 
-  // دالة تسجيل الدخول
+  // مراقبة حالة تسجيل الدخول
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setMessage('تم تسجيل الدخول بنجاح!');
-      setCurrentPage('home'); // العودة للرئيسية
+      setCurrentPage('account'); // الانتقال للملف الشخصي
     } catch (error) {
       setMessage('خطأ: ' + error.message);
     }
   };
 
-  // دالة إنشاء حساب
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
@@ -48,6 +52,12 @@ function App() {
     } catch (error) {
       setMessage('خطأ: ' + error.message);
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setMessage('تم تسجيل الخروج');
+    setCurrentPage('home');
   };
 
   const styles = {
@@ -75,7 +85,10 @@ function App() {
     input: { border: 'none', background: 'transparent', outline: 'none', width: '100%', marginLeft: '10px', fontFamily: 'inherit', color: '#333' },
     btnSubmit: { width: '100%', backgroundColor: '#1a237e', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' },
     linkText: { textAlign: 'center', marginTop: '15px', fontSize: '14px', color: '#007bff', cursor: 'pointer' },
-    messageBox: { textAlign: 'center', marginTop: '15px', color: 'red', fontWeight: 'bold' }
+    messageBox: { textAlign: 'center', marginTop: '15px', color: 'red', fontWeight: 'bold' },
+    profileBox: { background: 'white', padding: '30px 20px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', textAlign: 'center' },
+    pointsBadge: { backgroundColor: '#fff3e0', color: '#ffb300', padding: '10px 20px', borderRadius: '20px', fontWeight: 'bold', display: 'inline-block', margin: '20px 0' },
+    btnLogout: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }
   };
 
   const renderPage = () => {
@@ -111,24 +124,43 @@ function App() {
         </>
       );
     } else if (currentPage === 'account') {
-      return (
-        <div style={styles.formBox}>
-          <h2 style={styles.formTitle}>تسجيل الدخول</h2>
-          <form onSubmit={handleLogin}>
-            <div style={styles.inputGroup}>
-              <FaEnvelope color="#666" />
-              <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
+      // إذا كان المستخدم مسجلاً للدخول، اعرض الملف الشخصي
+      if (user) {
+        return (
+          <div style={styles.profileBox}>
+            <h2 style={{color: '#1a237e'}}>مرحباً بك 👋</h2>
+            <p style={{color: '#666', marginTop: '10px'}}>{user.email}</p>
+            
+            <div style={styles.pointsBadge}>
+              رصيدك الحالي: 0 نقطة
             </div>
-            <div style={styles.inputGroup}>
-              <FaLock color="#666" />
-              <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-            <button type="submit" style={styles.btnSubmit}>دخول</button>
-          </form>
-          {message && <p style={styles.messageBox}>{message}</p>}
-          <p style={styles.linkText} onClick={() => setCurrentPage('register')}>ليس لديك حساب؟ إنشاء حساب جديد</p>
-        </div>
-      );
+            
+            <p style={{color: '#666', marginBottom: '20px'}}>قم بمسح الباركود لكسب النقاط!</p>
+            <button style={styles.btnLogout} onClick={handleLogout}>تسجيل الخروج</button>
+          </div>
+        );
+      } 
+      // إذا لم يكن مسجلاً، اعرض نموذج تسجيل الدخول
+      else {
+        return (
+          <div style={styles.formBox}>
+            <h2 style={styles.formTitle}>تسجيل الدخول</h2>
+            <form onSubmit={handleLogin}>
+              <div style={styles.inputGroup}>
+                <FaEnvelope color="#666" />
+                <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+              <div style={styles.inputGroup}>
+                <FaLock color="#666" />
+                <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
+              </div>
+              <button type="submit" style={styles.btnSubmit}>دخول</button>
+            </form>
+            {message && <p style={styles.messageBox}>{message}</p>}
+            <p style={styles.linkText} onClick={() => setCurrentPage('register')}>ليس لديك حساب؟ إنشاء حساب جديد</p>
+          </div>
+        );
+      }
     } else if (currentPage === 'register') {
       return (
         <div style={styles.formBox}>
