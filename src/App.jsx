@@ -19,7 +19,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_EMAIL = "swnyszny0@gmail.com"; 
-const WHATSAPP_NUMBER = "9647714983580"; // رقم الواتساب الخاص بك
+const WHATSAPP_NUMBER = "9647714983580";
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -141,40 +141,10 @@ function App() {
     alert("تم استبدال الهدية بنجاح!");
   };
 
+  // الدالة التي تطبع النص المقروء بالضبط
   const handleBarcodeScan = async (decodedText) => {
-  // إذا كان الباركود يحتوي على رابط، سنستخرج الرقم الموجود في نهايته
-  let cleanCode = decodedText;
-  if (decodedText.includes('http')) {
-     // محاولة استخراج آخر جزء من الرابط (بعد آخر شرطة مائلة /)
-     const parts = decodedText.split('/');
-     cleanCode = parts[parts.length - 1];
-     // إزالة أي علامات استفهام أو رموز إضافية
-     cleanCode = cleanCode.split('?')[0]; 
-  }
-
-  // البحث عن الكود النظيف في قاعدة البيانات
-  const q = query(collection(db, "barcodes"), where("code", "==", cleanCode));
-  const querySnapshot = await getDocs(q);
-
-  if (!querySnapshot.empty) {
-    const barcodeData = querySnapshot.docs[0].data();
-    await addPoints(barcodeData.points);
-    alert(`باركود صحيح! تم إضافة ${barcodeData.points} نقطة.`);
-  } else {
-    // إذا لم نجد الكود النظيف، نبحث عن النص الأصلي كاملاً (للتأكد)
-    const q2 = query(collection(db, "barcodes"), where("code", "==", decodedText));
-    const snap2 = await getDocs(q2);
-    if(!snap2.empty) {
-       const bData = snap2.docs[0].data();
-       await addPoints(bData.points);
-       alert(`باركود صحيح! تم إضافة ${bData.points} نقطة.`);
-    } else {
-       alert(`عذراً، هذا الباركود غير مسجل في النظام.\nالكود المقروء هو: ${cleanCode}`);
-    }
-  }
-  setCurrentPage('account');
-};
-    const q = query(collection(db, "barcodes"), where("code", "==", decodedText));
+    const cleanCode = decodedText.trim(); 
+    const q = query(collection(db, "barcodes"), where("code", "==", cleanCode));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
@@ -182,7 +152,8 @@ function App() {
       await addPoints(barcodeData.points);
       alert(`باركود صحيح! تم إضافة ${barcodeData.points} نقطة.`);
     } else {
-      alert("عذراً، هذا الباركود غير مسجل في النظام.");
+      // هنا سيظهر لنا النص الذي قرأه الماسح بالضبط
+      alert(`عذراً، هذا الباركود غير مسجل.\nالنص الذي قرأه التطبيق هو:\n"${cleanCode}"`);
     }
     setCurrentPage('account');
   };
@@ -258,7 +229,7 @@ function App() {
     topBar: { backgroundColor: '#fff', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
     icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer', color: '#666' },
     logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
-    logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }, // الشعار الجديد هنا
+    logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' },
     logoText: { fontSize: '12px', fontWeight: 'bold', color: '#333', marginTop: '5px' },
     main: { padding: '20px', paddingBottom: '80px' },
     banner: { background: '#f0f0f0', color: '#333', padding: '20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
@@ -364,7 +335,6 @@ function App() {
                 <img src={product.image} alt={product.name} style={styles.productImg} />
                 <p style={styles.productName}>{product.name}</p>
                 <p style={styles.productPrice}>{product.price}</p>
-                {/* هنا تم ربط زر الواتساب برقمك */}
                 <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=مرحباً، أنا مهتم بمنتج: ${product.name}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none'}}>
                   <button style={styles.whatsappBtn}>
                     <FaWhatsapp /> تواصل عبر
@@ -539,7 +509,6 @@ function App() {
           <FaBars onClick={() => setCurrentPage('menu')} style={{fontSize: '24px', cursor: 'pointer', color: '#333'}} />
         </div>
         <div style={styles.logoArea}>
-          {/* الشعار الجديد هنا */}
           <img src="https://static.iimg.live/uploads/fantastic-picture-5667.jpg" alt="Logo" style={styles.logoImg} />
           <div style={styles.logoText}>مجمع اسعد العزاوي</div>
         </div>
