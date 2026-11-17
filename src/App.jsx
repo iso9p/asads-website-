@@ -142,6 +142,38 @@ function App() {
   };
 
   const handleBarcodeScan = async (decodedText) => {
+  // إذا كان الباركود يحتوي على رابط، سنستخرج الرقم الموجود في نهايته
+  let cleanCode = decodedText;
+  if (decodedText.includes('http')) {
+     // محاولة استخراج آخر جزء من الرابط (بعد آخر شرطة مائلة /)
+     const parts = decodedText.split('/');
+     cleanCode = parts[parts.length - 1];
+     // إزالة أي علامات استفهام أو رموز إضافية
+     cleanCode = cleanCode.split('?')[0]; 
+  }
+
+  // البحث عن الكود النظيف في قاعدة البيانات
+  const q = query(collection(db, "barcodes"), where("code", "==", cleanCode));
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    const barcodeData = querySnapshot.docs[0].data();
+    await addPoints(barcodeData.points);
+    alert(`باركود صحيح! تم إضافة ${barcodeData.points} نقطة.`);
+  } else {
+    // إذا لم نجد الكود النظيف، نبحث عن النص الأصلي كاملاً (للتأكد)
+    const q2 = query(collection(db, "barcodes"), where("code", "==", decodedText));
+    const snap2 = await getDocs(q2);
+    if(!snap2.empty) {
+       const bData = snap2.docs[0].data();
+       await addPoints(bData.points);
+       alert(`باركود صحيح! تم إضافة ${bData.points} نقطة.`);
+    } else {
+       alert(`عذراً، هذا الباركود غير مسجل في النظام.\nالكود المقروء هو: ${cleanCode}`);
+    }
+  }
+  setCurrentPage('account');
+};
     const q = query(collection(db, "barcodes"), where("code", "==", decodedText));
     const querySnapshot = await getDocs(q);
 
