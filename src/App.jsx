@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight } from 'react-icons/fa';
+import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where } from "firebase/firestore";
@@ -55,7 +55,7 @@ function App() {
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
 
-  const primaryColor = '#C8A97E';
+  const primaryColor = '#0054e9'; // تغيير اللون إلى الأزرق مثل التطبيق الأصلي
   const darkColor = '#2C2C2C';
 
   useEffect(() => {
@@ -77,7 +77,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // جلب البيانات الأولية
   useEffect(() => {
     const fetchData = async () => {
       const giftsSnapshot = await getDocs(collection(db, "gifts"));
@@ -92,7 +91,6 @@ function App() {
     fetchData();
   }, []);
 
-  // جلب منتجات الوكيل عند اختياره
   useEffect(() => {
     if (selectedAgent) {
       const fetchProducts = async () => {
@@ -224,21 +222,38 @@ function App() {
 
   const styles = {
     container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0, color: '#333' },
-    topBar: { backgroundColor: darkColor, color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100 },
-    icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer' },
-    logoArea: { display: 'flex', alignItems: 'center', gap: '10px' },
-    logoImg: { width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${primaryColor}` },
-    logoText: { fontSize: '18px', fontWeight: 'bold', color: primaryColor },
+    topBar: { backgroundColor: '#fff', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
+    icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer', color: '#666' },
+    logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+    logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' },
+    logoText: { fontSize: '12px', fontWeight: 'bold', color: '#333', marginTop: '5px' },
     main: { padding: '20px', paddingBottom: '80px' },
-    banner: { background: `linear-gradient(135deg, ${primaryColor}, ${darkColor})`, color: 'white', padding: '30px 20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
-    sectionTitle: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: darkColor },
-    grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
-    agentCard: { background: 'white', padding: '15px', borderRadius: '10px', textAlign: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', cursor: 'pointer' },
-    agentImg: { width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto 10px auto', border: `2px solid ${primaryColor}` },
-    agentName: { fontSize: '14px', fontWeight: 'bold', color: darkColor, margin: 0 },
-    bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)' },
+    
+    // تصميم البانر
+    banner: { background: '#f0f0f0', color: '#333', padding: '20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
+    
+    // تصميم الوكلاء (شبكة)
+    agentsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' },
+    agentCard: { background: '#fff', padding: '15px', borderRadius: '15px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+    agentImg: { width: '60px', height: '60px', borderRadius: '50%', objectFit: 'contain', marginBottom: '10px' },
+    agentName: { fontSize: '14px', fontWeight: 'bold', color: '#333', margin: 0 },
+    
+    // تصميم صفحة المنتجات
+    productHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', backgroundColor: '#fff', padding: '15px', borderRadius: '10px' },
+    searchBar: { width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px' },
+    productGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' },
+    productCard: { background: '#fff', padding: '15px', borderRadius: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', position: 'relative' },
+    productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' },
+    bookmarkIcon: { position: 'absolute', top: '10px', right: '10px', color: '#ccc', cursor: 'pointer' },
+    productName: { fontSize: '16px', fontWeight: 'bold', color: '#333', margin: '0 0 5px 0', textAlign: 'center' },
+    productPrice: { fontSize: '14px', color: '#666', margin: '0 0 15px 0', textAlign: 'center' },
+    whatsappBtn: { backgroundColor: '#fff', border: '1px solid #25D366', color: '#25D366', padding: '8px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '14px', fontWeight: 'bold' },
+
+    // تصميم الشريط السفلي
+    bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)', zIndex: 100 },
     navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', color: '#666', gap: '5px', cursor: 'pointer' },
     navActive: { color: primaryColor, fontWeight: 'bold' },
+    
     giftCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     giftTitle: { fontSize: '16px', fontWeight: 'bold', margin: '0 0 5px 0', color: darkColor },
     giftPoints: { fontSize: '14px', color: primaryColor, fontWeight: 'bold', margin: 0 },
@@ -257,8 +272,7 @@ function App() {
     adminBox: { background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' },
     adminTitle: { color: darkColor, borderBottom: `2px solid ${primaryColor}`, paddingBottom: '10px', marginBottom: '15px' },
     btnDelete: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
-    backBtn: { background: 'none', border: 'none', color: darkColor, fontSize: '20px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' },
-    productCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+    backBtn: { background: 'none', border: 'none', color: darkColor, fontSize: '20px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' }
   };
 
   const renderPage = () => {
@@ -266,19 +280,18 @@ function App() {
       return (
         <>
           <div style={styles.banner}>
-            <h1 style={{fontSize: '22px', margin: '0 0 10px 0'}}>مرحباً بك في مجمع اسعد العزاوي</h1>
-            <p style={{margin: 0, fontSize: '14px'}}>اكتشف أفضل العروض والخدمات</p>
+            <h1 style={{fontSize: '22px', margin: '0 0 10px 0'}}>شركة مجمع اسعد العزاوي ترحب بك 👋</h1>
           </div>
           {user && (
             <button style={styles.btnScan} onClick={startScanner}>
               <FaQrcode /> مسح الباركود لكسب النقاط
             </button>
           )}
-          <div style={{...styles.sectionTitle, marginTop: '30px'}}>
-            <h3>الوكلاء</h3>
+          <div style={{...styles.sectionTitle, marginTop: '20px', display: 'flex', justifyContent: 'space-between'}}>
+            <h3 style={{color: '#333'}}>الوكلاء</h3>
             <span style={{color: primaryColor, cursor: 'pointer', fontSize: '14px'}} onClick={() => setCurrentPage('agents')}>عرض المزيد</span>
           </div>
-          <div style={styles.grid}>
+          <div style={styles.agentsGrid}>
             {agents.slice(0, 3).map(agent => (
               <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
                 <img src={agent.image} alt={agent.name} style={styles.agentImg} />
@@ -287,6 +300,53 @@ function App() {
             ))}
           </div>
         </>
+      );
+    } else if (currentPage === 'agents') {
+      return (
+        <>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+            <h2 style={{color: '#333', margin: 0}}>المجموعات</h2>
+            <FaArrowRight onClick={() => setCurrentPage('home')} style={{cursor: 'pointer', fontSize: '20px'}} />
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+            {agents.map(agent => (
+              <div key={agent.id} style={{background: '#fff', padding: '20px', borderRadius: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', border: '1px solid #eee'}} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                  <img src={agent.image} alt={agent.name} style={{width: '50px', height: '50px', borderRadius: '50%', objectFit: 'contain'}} />
+                  <div>
+                    <h3 style={{margin: '0 0 5px 0', fontSize: '16px', color: '#333'}}>{agent.name}</h3>
+                    <p style={{margin: 0, fontSize: '12px', color: '#888'}}>عرض المنتجات</p>
+                  </div>
+                </div>
+                <FaArrowRight style={{color: '#ccc'}} />
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    } else if (currentPage === 'agentDetails') {
+      return (
+        <div>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+            <h2 style={{color: '#333', margin: 0}}>المنتجات</h2>
+            <FaArrowRight onClick={() => setCurrentPage('agents')} style={{cursor: 'pointer', fontSize: '20px'}} />
+          </div>
+          <input type="text" placeholder="ابحث عن منتجك هنا" style={styles.searchBar} />
+          
+          <div style={styles.productGrid}>
+            {agentProducts.map(product => (
+              <div key={product.id} style={styles.productCard}>
+                <FaBookmark style={styles.bookmarkIcon} />
+                <img src="https://via.placeholder.com/150" alt={product.name} style={styles.productImg} />
+                <p style={styles.productName}>{product.name}</p>
+                <p style={styles.productPrice}>{product.price}</p>
+                <button style={styles.whatsappBtn}>
+                  <FaWhatsapp /> تواصل عبر
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       );
     } else if (currentPage === 'gifts') {
       return (
@@ -304,40 +364,6 @@ function App() {
             ))
           )}
         </>
-      );
-    } else if (currentPage === 'agents') {
-      return (
-        <>
-          <h2 style={{color: darkColor, marginBottom: '20px'}}>الوكلاء</h2>
-          <div style={styles.grid}>
-            {agents.map(agent => (
-              <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
-                <img src={agent.image} alt={agent.name} style={styles.agentImg} />
-                <p style={styles.agentName}>{agent.name}</p>
-              </div>
-            ))}
-          </div>
-        </>
-      );
-    } else if (currentPage === 'agentDetails') {
-      return (
-        <div>
-          <button style={styles.backBtn} onClick={() => setCurrentPage('agents')}><FaArrowRight /> عودة</button>
-          <div style={{textAlign: 'center', marginBottom: '20px'}}>
-            <img src={selectedAgent?.image} style={{...styles.agentImg, width: '100px', height: '100px'}} />
-            <h2 style={{color: darkColor, margin: '10px 0'}}>{selectedAgent?.name}</h2>
-            <p style={{color: '#666'}}>{selectedAgent?.location}</p>
-          </div>
-          <h3 style={{color: darkColor, borderBottom: `2px solid ${primaryColor}`, paddingBottom: '10px', marginBottom: '15px'}}>المنتجات</h3>
-          {agentProducts.length === 0 ? <p style={{textAlign: 'center', color: '#666'}}>لا توجد منتجات لهذا الوكيل حالياً.</p> : (
-            agentProducts.map(product => (
-              <div key={product.id} style={styles.productCard}>
-                <span style={{fontWeight: 'bold', color: darkColor}}>{product.name}</span>
-                <span style={{color: primaryColor, fontWeight: 'bold'}}>{product.price}</span>
-              </div>
-            ))
-          )}
-        </div>
       );
     } else if (currentPage === 'scanner') {
       return (
@@ -433,7 +459,6 @@ function App() {
             ))}
           </div>
 
-          {/* إدارة الوكلاء */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaStore /> إضافة وكيل جديد</h3>
             <form onSubmit={handleAddAgent}>
@@ -448,13 +473,12 @@ function App() {
             <h3 style={styles.adminTitle}>الوكلاء الحاليون</h3>
             {agents.map(agent => (
               <div key={agent.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><img src={agent.image} style={{width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover'}} /><span>{agent.name}</span></div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><img src={agent.image} style={{width: '40px', height: '40px', borderRadius: '50%', objectFit: 'contain'}} /><span>{agent.name}</span></div>
                 <button style={styles.btnDelete} onClick={() => handleDeleteAgent(agent.id)}><FaTrash /></button>
               </div>
             ))}
           </div>
 
-          {/* إدارة المنتجات */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaPlus /> إضافة منتج لوكيل</h3>
             <div style={{marginBottom: '15px'}}>
@@ -483,23 +507,24 @@ function App() {
   return (
     <div style={styles.container}>
       <header style={styles.topBar}>
-        <div style={styles.icons}>
-          <FaBars onClick={() => setCurrentPage('menu')} />
-          <FaBell />
-          <FaGift onClick={() => setCurrentPage('gifts')} />
+        <div style={{display: 'flex', alignItems: 'center'}}>
+          <FaBars onClick={() => setCurrentPage('menu')} style={{fontSize: '24px', cursor: 'pointer', color: '#333'}} />
         </div>
         <div style={styles.logoArea}>
-          {/* يمكنك تغيير رابط الشعار هنا */}
-          <img src="https://via.placeholder.com/50/C8A97E/FFFFFF?text=LOGO" alt="Logo" style={styles.logoImg} />
+          <img src="https://via.placeholder.com/50/0054e9/FFFFFF?text=LOGO" alt="Logo" style={styles.logoImg} />
           <div style={styles.logoText}>مجمع اسعد العزاوي</div>
+        </div>
+        <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
+           <FaBell style={{fontSize: '20px', color: '#333'}} />
+           <FaGift style={{fontSize: '20px', color: '#333'}} onClick={() => setCurrentPage('gifts')} />
         </div>
       </header>
       <main style={styles.main}>{renderPage()}</main>
       <nav style={styles.bottomNav}>
-        <div style={{...styles.navItem, ...(currentPage === 'home' ? styles.navActive : {})}} onClick={() => setCurrentPage('home')}><FaHome /> الرئيسية</div>
-        <div style={{...styles.navItem, ...(currentPage === 'gifts' ? styles.navActive : {})}} onClick={() => setCurrentPage('gifts')}><FaGift /> الهدايا</div>
-        <div style={{...styles.navItem, ...(currentPage === 'account' || currentPage === 'register' ? styles.navActive : {})}} onClick={() => setCurrentPage('account')}><FaUser /> حسابي</div>
-        <div style={{...styles.navItem, ...(currentPage === 'agents' ? styles.navActive : {})}} onClick={() => setCurrentPage('agents')}><FaStore /> الوكلاء</div>
+        <div style={{...styles.navItem, ...(currentPage === 'home' ? styles.navActive : {})}} onClick={() => setCurrentPage('home')}><FaHome size={20} /> الرئيسية</div>
+        <div style={{...styles.navItem, ...(currentPage === 'gifts' ? styles.navActive : {})}} onClick={() => setCurrentPage('gifts')}><FaGift size={20} /> الهدايا</div>
+        <div style={{...styles.navItem, ...(currentPage === 'account' || currentPage === 'register' ? styles.navActive : {})}} onClick={() => setCurrentPage('account')}><FaUser size={20} /> حسابي</div>
+        <div style={{...styles.navItem, ...(currentPage === 'agents' ? styles.navActive : {})}} onClick={() => setCurrentPage('agents')}><FaStore size={20} /> القائمة</div>
       </nav>
     </div>
   );
