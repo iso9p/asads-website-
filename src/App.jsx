@@ -46,16 +46,17 @@ function App() {
   const [newAgentLocation, setNewAgentLocation] = useState('');
   const [newAgentImage, setNewAgentImage] = useState('');
   
-  // بيانات إدارة المنتجات
+  // بيانات إدارة المنتجات (تمت إضافة الصورة)
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductImage, setNewProductImage] = useState(''); // جديد
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
 
-  const primaryColor = '#0054e9'; // تغيير اللون إلى الأزرق مثل التطبيق الأصلي
+  const primaryColor = '#0054e9';
   const darkColor = '#2C2C2C';
 
   useEffect(() => {
@@ -203,16 +204,22 @@ function App() {
     } catch (error) { alert("حدث خطأ"); }
   };
 
+  // دالة إضافة منتج مع صورة
   const handleAddProduct = async (e) => {
     e.preventDefault();
     if (!selectedAgent) return;
     try {
-      await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, agentId: selectedAgent.id });
+      await addDoc(collection(db, "products"), { 
+        name: newProductName, 
+        price: newProductPrice, 
+        image: newProductImage || 'https://via.placeholder.com/150', // حفظ رابط الصورة
+        agentId: selectedAgent.id 
+      });
       alert("تمت إضافة المنتج!");
       const q = query(collection(db, "products"), where("agentId", "==", selectedAgent.id));
       const querySnapshot = await getDocs(q);
       setAgentProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setNewProductName(''); setNewProductPrice('');
+      setNewProductName(''); setNewProductPrice(''); setNewProductImage('');
     } catch (error) { alert("حدث خطأ"); }
   };
 
@@ -228,32 +235,23 @@ function App() {
     logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' },
     logoText: { fontSize: '12px', fontWeight: 'bold', color: '#333', marginTop: '5px' },
     main: { padding: '20px', paddingBottom: '80px' },
-    
-    // تصميم البانر
     banner: { background: '#f0f0f0', color: '#333', padding: '20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
-    
-    // تصميم الوكلاء (شبكة)
     agentsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' },
     agentCard: { background: '#fff', padding: '15px', borderRadius: '15px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
     agentImg: { width: '60px', height: '60px', borderRadius: '50%', objectFit: 'contain', marginBottom: '10px' },
     agentName: { fontSize: '14px', fontWeight: 'bold', color: '#333', margin: 0 },
-    
-    // تصميم صفحة المنتجات
     productHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', backgroundColor: '#fff', padding: '15px', borderRadius: '10px' },
     searchBar: { width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px' },
     productGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' },
     productCard: { background: '#fff', padding: '15px', borderRadius: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', position: 'relative' },
-    productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' },
+    productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }, // تم تعديلها لتستوعب الصورة
     bookmarkIcon: { position: 'absolute', top: '10px', right: '10px', color: '#ccc', cursor: 'pointer' },
     productName: { fontSize: '16px', fontWeight: 'bold', color: '#333', margin: '0 0 5px 0', textAlign: 'center' },
     productPrice: { fontSize: '14px', color: '#666', margin: '0 0 15px 0', textAlign: 'center' },
     whatsappBtn: { backgroundColor: '#fff', border: '1px solid #25D366', color: '#25D366', padding: '8px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '14px', fontWeight: 'bold' },
-
-    // تصميم الشريط السفلي
     bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)', zIndex: 100 },
     navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', color: '#666', gap: '5px', cursor: 'pointer' },
     navActive: { color: primaryColor, fontWeight: 'bold' },
-    
     giftCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     giftTitle: { fontSize: '16px', fontWeight: 'bold', margin: '0 0 5px 0', color: darkColor },
     giftPoints: { fontSize: '14px', color: primaryColor, fontWeight: 'bold', margin: 0 },
@@ -337,7 +335,7 @@ function App() {
             {agentProducts.map(product => (
               <div key={product.id} style={styles.productCard}>
                 <FaBookmark style={styles.bookmarkIcon} />
-                <img src="https://via.placeholder.com/150" alt={product.name} style={styles.productImg} />
+                <img src={product.image} alt={product.name} style={styles.productImg} />
                 <p style={styles.productName}>{product.name}</p>
                 <p style={styles.productPrice}>{product.price}</p>
                 <button style={styles.whatsappBtn}>
@@ -479,6 +477,7 @@ function App() {
             ))}
           </div>
 
+          {/* إدارة المنتجات مع إضافة الصورة */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaPlus /> إضافة منتج لوكيل</h3>
             <div style={{marginBottom: '15px'}}>
@@ -494,6 +493,7 @@ function App() {
               <form onSubmit={handleAddProduct}>
                 <div style={styles.inputGroup}><input type="text" placeholder="اسم المنتج" style={styles.input} value={newProductName} onChange={(e) => setNewProductName(e.target.value)} required /></div>
                 <div style={styles.inputGroup}><input type="text" placeholder="السعر" style={styles.input} value={newProductPrice} onChange={(e) => setNewProductPrice(e.target.value)} required /></div>
+                <div style={styles.inputGroup}><input type="text" placeholder="رابط صورة المنتج" style={styles.input} value={newProductImage} onChange={(e) => setNewProductImage(e.target.value)} /></div>
                 <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#FF9800'}}><FaPlus /> إضافة المنتج</button>
               </form>
             )}
