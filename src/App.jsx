@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode } from 'react-icons/fa';
+import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where } from "firebase/firestore";
@@ -31,10 +31,24 @@ function App() {
   const [newGiftCost, setNewGiftCost] = useState('');
   const [newGiftImage, setNewGiftImage] = useState('');
 
-  // بيانات الباركودات (للإدارة)
+  // بيانات الباركودات
   const [barcodes, setBarcodes] = useState([]);
   const [newBarcodeCode, setNewBarcodeCode] = useState('');
   const [newBarcodePoints, setNewBarcodePoints] = useState('');
+
+  // بيانات الوكلاء والمنتجات
+  const [agents, setAgents] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [agentProducts, setAgentProducts] = useState([]);
+
+  // بيانات إدارة الوكلاء
+  const [newAgentName, setNewAgentName] = useState('');
+  const [newAgentLocation, setNewAgentLocation] = useState('');
+  const [newAgentImage, setNewAgentImage] = useState('');
+  
+  // بيانات إدارة المنتجات
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,7 +77,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // جلب الهدايا والباركودات
+  // جلب البيانات الأولية
   useEffect(() => {
     const fetchData = async () => {
       const giftsSnapshot = await getDocs(collection(db, "gifts"));
@@ -71,9 +85,24 @@ function App() {
 
       const barcodesSnapshot = await getDocs(collection(db, "barcodes"));
       setBarcodes(barcodesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      const agentsSnapshot = await getDocs(collection(db, "agents"));
+      setAgents(agentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
     fetchData();
   }, []);
+
+  // جلب منتجات الوكيل عند اختياره
+  useEffect(() => {
+    if (selectedAgent) {
+      const fetchProducts = async () => {
+        const q = query(collection(db, "products"), where("agentId", "==", selectedAgent.id));
+        const querySnapshot = await getDocs(q);
+        setAgentProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      };
+      fetchProducts();
+    }
+  }, [selectedAgent]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -101,7 +130,6 @@ function App() {
     setCurrentPage('home');
   };
 
-  // دالة إضافة النقاط
   const addPoints = async (amount) => {
     if (!user) return;
     const newPoints = userPoints + amount;
@@ -109,7 +137,6 @@ function App() {
     setUserPoints(newPoints);
   };
 
-  // دالة استبدال الهدية
   const redeemGift = async (cost) => {
     if (!user) return alert("يجب تسجيل الدخول أولاً");
     if (userPoints < cost) return alert("نقاطك غير كافية!");
@@ -119,20 +146,16 @@ function App() {
     alert("تم استبدال الهدية بنجاح!");
   };
 
-  // دالة معالجة الباركود الذكي
   const handleBarcodeScan = async (decodedText) => {
-    // البحث عن الباركود في قاعدة البيانات
     const q = query(collection(db, "barcodes"), where("code", "==", decodedText));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
       const barcodeData = querySnapshot.docs[0].data();
-      const pointsToAdd = barcodeData.points;
-      
-      await addPoints(pointsToAdd);
-      alert(`باركود صحيح! تم إضافة ${pointsToAdd} نقطة.`);
+      await addPoints(barcodeData.points);
+      alert(`باركود صحيح! تم إضافة ${barcodeData.points} نقطة.`);
     } else {
-      alert("عذراً، هذا الباركود غير مسجل في النظام أو تم استخدامه مسبقاً.");
+      alert("عذراً، هذا الباركود غير مسجل في النظام.");
     }
     setCurrentPage('account');
   };
@@ -148,61 +171,71 @@ function App() {
     }, 100);
   };
 
-  // دالة إضافة هدية
+  // دوال الإدارة
   const handleAddGift = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "gifts"), {
-        title: newGiftTitle,
-        cost: parseInt(newGiftCost),
-        image: newGiftImage || 'https://via.placeholder.com/150'
-      });
-      alert("تمت إضافة الهدية بنجاح!");
+      await addDoc(collection(db, "gifts"), { title: newGiftTitle, cost: parseInt(newGiftCost), image: newGiftImage || 'https://via.placeholder.com/150' });
+      alert("تمت إضافة الهدية!");
       const querySnapshot = await getDocs(collection(db, "gifts"));
       setGifts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setNewGiftTitle(''); setNewGiftCost(''); setNewGiftImage('');
     } catch (error) { alert("حدث خطأ"); }
   };
 
-  // دالة إضافة باركود جديد
   const handleAddBarcode = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "barcodes"), {
-        code: newBarcodeCode,
-        points: parseInt(newBarcodePoints)
-      });
-      alert("تمت إضافة الباركود بنجاح!");
+      await addDoc(collection(db, "barcodes"), { code: newBarcodeCode, points: parseInt(newBarcodePoints) });
+      alert("تمت إضافة الباركود!");
       const querySnapshot = await getDocs(collection(db, "barcodes"));
       setBarcodes(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setNewBarcodeCode(''); setNewBarcodePoints('');
     } catch (error) { alert("حدث خطأ"); }
   };
 
-  const handleDeleteGift = async (id) => {
-    if(window.confirm("هل أنت متأكد؟")) {
-      await deleteDoc(doc(db, "gifts", id));
-      setGifts(gifts.filter(g => g.id !== id));
-    }
+  const handleAddAgent = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "agents"), { name: newAgentName, location: newAgentLocation, image: newAgentImage || 'https://via.placeholder.com/150' });
+      alert("تمت إضافة الوكيل!");
+      const querySnapshot = await getDocs(collection(db, "agents"));
+      setAgents(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setNewAgentName(''); setNewAgentLocation(''); setNewAgentImage('');
+    } catch (error) { alert("حدث خطأ"); }
   };
 
-  const handleDeleteBarcode = async (id) => {
-    if(window.confirm("هل أنت متأكد؟")) {
-      await deleteDoc(doc(db, "barcodes", id));
-      setBarcodes(barcodes.filter(b => b.id !== id));
-    }
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    if (!selectedAgent) return;
+    try {
+      await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, agentId: selectedAgent.id });
+      alert("تمت إضافة المنتج!");
+      const q = query(collection(db, "products"), where("agentId", "==", selectedAgent.id));
+      const querySnapshot = await getDocs(q);
+      setAgentProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setNewProductName(''); setNewProductPrice('');
+    } catch (error) { alert("حدث خطأ"); }
   };
+
+  const handleDeleteGift = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "gifts", id)); setGifts(gifts.filter(g => g.id !== id)); } };
+  const handleDeleteBarcode = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "barcodes", id)); setBarcodes(barcodes.filter(b => b.id !== id)); } };
+  const handleDeleteAgent = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "agents", id)); setAgents(agents.filter(a => a.id !== id)); } };
 
   const styles = {
     container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0, color: '#333' },
-    topBar: { backgroundColor: darkColor, color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', position: 'sticky', top: 0, zIndex: 100 },
+    topBar: { backgroundColor: darkColor, color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100 },
     icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer' },
-    logo: { fontSize: '18px', fontWeight: 'bold', color: primaryColor },
+    logoArea: { display: 'flex', alignItems: 'center', gap: '10px' },
+    logoImg: { width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${primaryColor}` },
+    logoText: { fontSize: '18px', fontWeight: 'bold', color: primaryColor },
     main: { padding: '20px', paddingBottom: '80px' },
     banner: { background: `linear-gradient(135deg, ${primaryColor}, ${darkColor})`, color: 'white', padding: '30px 20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
     sectionTitle: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: darkColor },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' },
-    card: { background: 'white', padding: '20px', borderRadius: '10px', textAlign: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', fontWeight: 'bold', color: darkColor },
+    agentCard: { background: 'white', padding: '15px', borderRadius: '10px', textAlign: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', cursor: 'pointer' },
+    agentImg: { width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto 10px auto', border: `2px solid ${primaryColor}` },
+    agentName: { fontSize: '14px', fontWeight: 'bold', color: darkColor, margin: 0 },
     bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)' },
     navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', color: '#666', gap: '5px', cursor: 'pointer' },
     navActive: { color: primaryColor, fontWeight: 'bold' },
@@ -223,7 +256,9 @@ function App() {
     btnScan: { backgroundColor: primaryColor, color: 'white', border: 'none', padding: '15px', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', marginTop: '15px' },
     adminBox: { background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' },
     adminTitle: { color: darkColor, borderBottom: `2px solid ${primaryColor}`, paddingBottom: '10px', marginBottom: '15px' },
-    btnDelete: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' }
+    btnDelete: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
+    backBtn: { background: 'none', border: 'none', color: darkColor, fontSize: '20px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '5px' },
+    productCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
   };
 
   const renderPage = () => {
@@ -244,9 +279,12 @@ function App() {
             <span style={{color: primaryColor, cursor: 'pointer', fontSize: '14px'}} onClick={() => setCurrentPage('agents')}>عرض المزيد</span>
           </div>
           <div style={styles.grid}>
-            <div style={styles.card}>وكيل 1</div>
-            <div style={styles.card}>وكيل 2</div>
-            <div style={styles.card}>وكيل 3</div>
+            {agents.slice(0, 3).map(agent => (
+              <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
+                <img src={agent.image} alt={agent.name} style={styles.agentImg} />
+                <p style={styles.agentName}>{agent.name}</p>
+              </div>
+            ))}
           </div>
         </>
       );
@@ -254,17 +292,12 @@ function App() {
       return (
         <>
           <h2 style={{color: darkColor, marginBottom: '20px'}}>متجر الهدايا</h2>
-          {gifts.length === 0 ? (
-            <p style={{textAlign: 'center', color: '#666'}}>لا توجد هدايا حالياً.</p>
-          ) : (
+          {gifts.length === 0 ? <p style={{textAlign: 'center', color: '#666'}}>لا توجد هدايا حالياً.</p> : (
             gifts.map(gift => (
               <div key={gift.id} style={styles.giftCard}>
                 <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
                   <img src={gift.image} alt={gift.title} style={{width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover'}} />
-                  <div>
-                    <p style={styles.giftTitle}>{gift.title}</p>
-                    <p style={styles.giftPoints}>{gift.cost} نقطة</p>
-                  </div>
+                  <div><p style={styles.giftTitle}>{gift.title}</p><p style={styles.giftPoints}>{gift.cost} نقطة</p></div>
                 </div>
                 <button style={styles.btnRedeem} onClick={() => redeemGift(gift.cost)}>استبدال</button>
               </div>
@@ -276,16 +309,35 @@ function App() {
       return (
         <>
           <h2 style={{color: darkColor, marginBottom: '20px'}}>الوكلاء</h2>
-          <div style={styles.giftCard}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-              <FaStore size={30} color={primaryColor} />
-              <div>
-                <p style={styles.giftTitle}>وكيل المنطقة الشمالية</p>
-                <p style={{color: '#888', fontSize: '12px', margin: 0}}>شارع الملك فهد</p>
+          <div style={styles.grid}>
+            {agents.map(agent => (
+              <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
+                <img src={agent.image} alt={agent.name} style={styles.agentImg} />
+                <p style={styles.agentName}>{agent.name}</p>
               </div>
-            </div>
+            ))}
           </div>
         </>
+      );
+    } else if (currentPage === 'agentDetails') {
+      return (
+        <div>
+          <button style={styles.backBtn} onClick={() => setCurrentPage('agents')}><FaArrowRight /> عودة</button>
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <img src={selectedAgent?.image} style={{...styles.agentImg, width: '100px', height: '100px'}} />
+            <h2 style={{color: darkColor, margin: '10px 0'}}>{selectedAgent?.name}</h2>
+            <p style={{color: '#666'}}>{selectedAgent?.location}</p>
+          </div>
+          <h3 style={{color: darkColor, borderBottom: `2px solid ${primaryColor}`, paddingBottom: '10px', marginBottom: '15px'}}>المنتجات</h3>
+          {agentProducts.length === 0 ? <p style={{textAlign: 'center', color: '#666'}}>لا توجد منتجات لهذا الوكيل حالياً.</p> : (
+            agentProducts.map(product => (
+              <div key={product.id} style={styles.productCard}>
+                <span style={{fontWeight: 'bold', color: darkColor}}>{product.name}</span>
+                <span style={{color: primaryColor, fontWeight: 'bold'}}>{product.price}</span>
+              </div>
+            ))
+          )}
+        </div>
       );
     } else if (currentPage === 'scanner') {
       return (
@@ -303,11 +355,8 @@ function App() {
             <p style={{color: '#666', marginTop: '10px'}}>{user.email}</p>
             <div style={styles.pointsBadge}>رصيدك الحالي: {userPoints} نقطة</div>
             <p style={{color: '#666', marginBottom: '20px'}}>قم بمسح الباركود لكسب المزيد من النقاط!</p>
-            
             {user.email === ADMIN_EMAIL && (
-              <button style={{...styles.btnSubmit, marginBottom: '10px', backgroundColor: '#4CAF50'}} onClick={() => setCurrentPage('admin')}>
-                <FaCog /> لوحة تحكم الإدارة
-              </button>
+              <button style={{...styles.btnSubmit, marginBottom: '10px', backgroundColor: '#4CAF50'}} onClick={() => setCurrentPage('admin')}><FaCog /> لوحة تحكم الإدارة</button>
             )}
             <button style={styles.btnLogout} onClick={handleLogout}><FaSignOutAlt /> تسجيل الخروج</button>
           </div>
@@ -345,7 +394,6 @@ function App() {
         <div>
           <h2 style={{color: darkColor, marginBottom: '20px'}}>لوحة تحكم الإدارة</h2>
           
-          {/* إدارة الهدايا */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaGift /> إضافة هدية جديدة</h3>
             <form onSubmit={handleAddGift}>
@@ -366,11 +414,10 @@ function App() {
             ))}
           </div>
 
-          {/* إدارة الباركودات */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaBarcode /> إضافة باركود جديد</h3>
             <form onSubmit={handleAddBarcode}>
-              <div style={styles.inputGroup}><input type="text" placeholder="رقم الباركود (مثال: 123456)" style={styles.input} value={newBarcodeCode} onChange={(e) => setNewBarcodeCode(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="text" placeholder="رقم الباركود" style={styles.input} value={newBarcodeCode} onChange={(e) => setNewBarcodeCode(e.target.value)} required /></div>
               <div style={styles.inputGroup}><input type="number" placeholder="النقاط المضافة" style={styles.input} value={newBarcodePoints} onChange={(e) => setNewBarcodePoints(e.target.value)} required /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#2196F3'}}><FaPlus /> إضافة الباركود</button>
             </form>
@@ -384,6 +431,48 @@ function App() {
                 <button style={styles.btnDelete} onClick={() => handleDeleteBarcode(barcode.id)}><FaTrash /></button>
               </div>
             ))}
+          </div>
+
+          {/* إدارة الوكلاء */}
+          <div style={styles.adminBox}>
+            <h3 style={styles.adminTitle}><FaStore /> إضافة وكيل جديد</h3>
+            <form onSubmit={handleAddAgent}>
+              <div style={styles.inputGroup}><input type="text" placeholder="اسم الوكيل" style={styles.input} value={newAgentName} onChange={(e) => setNewAgentName(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="text" placeholder="العنوان / الموقع" style={styles.input} value={newAgentLocation} onChange={(e) => setNewAgentLocation(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="text" placeholder="رابط صورة الوكيل" style={styles.input} value={newAgentImage} onChange={(e) => setNewAgentImage(e.target.value)} /></div>
+              <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#9C27B0'}}><FaPlus /> إضافة الوكيل</button>
+            </form>
+          </div>
+
+          <div style={styles.adminBox}>
+            <h3 style={styles.adminTitle}>الوكلاء الحاليون</h3>
+            {agents.map(agent => (
+              <div key={agent.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><img src={agent.image} style={{width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover'}} /><span>{agent.name}</span></div>
+                <button style={styles.btnDelete} onClick={() => handleDeleteAgent(agent.id)}><FaTrash /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* إدارة المنتجات */}
+          <div style={styles.adminBox}>
+            <h3 style={styles.adminTitle}><FaPlus /> إضافة منتج لوكيل</h3>
+            <div style={{marginBottom: '15px'}}>
+              <select 
+                onChange={(e) => setSelectedAgent(agents.find(a => a.id === e.target.value))}
+                style={{...styles.input, padding: '10px', border: '1px solid #ddd', borderRadius: '8px', width: '100%'}}
+              >
+                <option value="">-- اختر الوكيل --</option>
+                {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            {selectedAgent && (
+              <form onSubmit={handleAddProduct}>
+                <div style={styles.inputGroup}><input type="text" placeholder="اسم المنتج" style={styles.input} value={newProductName} onChange={(e) => setNewProductName(e.target.value)} required /></div>
+                <div style={styles.inputGroup}><input type="text" placeholder="السعر" style={styles.input} value={newProductPrice} onChange={(e) => setNewProductPrice(e.target.value)} required /></div>
+                <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#FF9800'}}><FaPlus /> إضافة المنتج</button>
+              </form>
+            )}
           </div>
         </div>
       );
@@ -399,7 +488,11 @@ function App() {
           <FaBell />
           <FaGift onClick={() => setCurrentPage('gifts')} />
         </div>
-        <div style={styles.logo}>مجمع اسعد العزاوي</div>
+        <div style={styles.logoArea}>
+          {/* يمكنك تغيير رابط الشعار هنا */}
+          <img src="https://via.placeholder.com/50/C8A97E/FFFFFF?text=LOGO" alt="Logo" style={styles.logoImg} />
+          <div style={styles.logoText}>مجمع اسعد العزاوي</div>
+        </div>
       </header>
       <main style={styles.main}>{renderPage()}</main>
       <nav style={styles.bottomNav}>
