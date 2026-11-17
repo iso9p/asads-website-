@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash } from 'react-icons/fa';
+import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where } from "firebase/firestore";
 import { Html5QrcodeScanner } from "html5-qrcode";
 
 const firebaseConfig = {
@@ -18,7 +18,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ضع بريدك الإلكتروني هنا كمدير
 const ADMIN_EMAIL = "swnyszny0@gmail.com"; 
 
 function App() {
@@ -26,11 +25,16 @@ function App() {
   const [user, setUser] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
   
-  // بيانات الإدارة
+  // بيانات الهدايا
   const [gifts, setGifts] = useState([]);
   const [newGiftTitle, setNewGiftTitle] = useState('');
   const [newGiftCost, setNewGiftCost] = useState('');
   const [newGiftImage, setNewGiftImage] = useState('');
+
+  // بيانات الباركودات (للإدارة)
+  const [barcodes, setBarcodes] = useState([]);
+  const [newBarcodeCode, setNewBarcodeCode] = useState('');
+  const [newBarcodePoints, setNewBarcodePoints] = useState('');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +44,6 @@ function App() {
   const primaryColor = '#C8A97E';
   const darkColor = '#2C2C2C';
 
-  // مراقبة حالة تسجيل الدخول
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -60,14 +63,16 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // جلب الهدايا من قاعدة البيانات
+  // جلب الهدايا والباركودات
   useEffect(() => {
-    const fetchGifts = async () => {
-      const querySnapshot = await getDocs(collection(db, "gifts"));
-      const giftsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setGifts(giftsList);
+    const fetchData = async () => {
+      const giftsSnapshot = await getDocs(collection(db, "gifts"));
+      setGifts(giftsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      const barcodesSnapshot = await getDocs(collection(db, "barcodes"));
+      setBarcodes(barcodesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
-    fetchGifts();
+    fetchData();
   }, []);
 
   const handleLogin = async (e) => {
@@ -96,6 +101,7 @@ function App() {
     setCurrentPage('home');
   };
 
+  // دالة إضافة النقاط
   const addPoints = async (amount) => {
     if (!user) return;
     const newPoints = userPoints + amount;
@@ -103,6 +109,7 @@ function App() {
     setUserPoints(newPoints);
   };
 
+  // دالة استبدال الهدية
   const redeemGift = async (cost) => {
     if (!user) return alert("يجب تسجيل الدخول أولاً");
     if (userPoints < cost) return alert("نقاطك غير كافية!");
@@ -112,20 +119,36 @@ function App() {
     alert("تم استبدال الهدية بنجاح!");
   };
 
+  // دالة معالجة الباركود الذكي
+  const handleBarcodeScan = async (decodedText) => {
+    // البحث عن الباركود في قاعدة البيانات
+    const q = query(collection(db, "barcodes"), where("code", "==", decodedText));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const barcodeData = querySnapshot.docs[0].data();
+      const pointsToAdd = barcodeData.points;
+      
+      await addPoints(pointsToAdd);
+      alert(`باركود صحيح! تم إضافة ${pointsToAdd} نقطة.`);
+    } else {
+      alert("عذراً، هذا الباركود غير مسجل في النظام أو تم استخدامه مسبقاً.");
+    }
+    setCurrentPage('account');
+  };
+
   const startScanner = () => {
     setCurrentPage('scanner');
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
       scanner.render((decodedText) => {
         scanner.clear();
-        addPoints(10);
-        alert(`تم مسح الباركود بنجاح! تم إضافة 10 نقاط.`);
-        setCurrentPage('account');
+        handleBarcodeScan(decodedText);
       });
     }, 100);
   };
 
-  // دالة إضافة هدية (للإدارة)
+  // دالة إضافة هدية
   const handleAddGift = async (e) => {
     e.preventDefault();
     try {
@@ -135,22 +158,38 @@ function App() {
         image: newGiftImage || 'https://via.placeholder.com/150'
       });
       alert("تمت إضافة الهدية بنجاح!");
-      // تحديث القائمة
       const querySnapshot = await getDocs(collection(db, "gifts"));
       setGifts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setNewGiftTitle('');
-      setNewGiftCost('');
-      setNewGiftImage('');
-    } catch (error) {
-      alert("حدث خطأ أثناء إضافة الهدية");
+      setNewGiftTitle(''); setNewGiftCost(''); setNewGiftImage('');
+    } catch (error) { alert("حدث خطأ"); }
+  };
+
+  // دالة إضافة باركود جديد
+  const handleAddBarcode = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "barcodes"), {
+        code: newBarcodeCode,
+        points: parseInt(newBarcodePoints)
+      });
+      alert("تمت إضافة الباركود بنجاح!");
+      const querySnapshot = await getDocs(collection(db, "barcodes"));
+      setBarcodes(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setNewBarcodeCode(''); setNewBarcodePoints('');
+    } catch (error) { alert("حدث خطأ"); }
+  };
+
+  const handleDeleteGift = async (id) => {
+    if(window.confirm("هل أنت متأكد؟")) {
+      await deleteDoc(doc(db, "gifts", id));
+      setGifts(gifts.filter(g => g.id !== id));
     }
   };
 
-  // دالة حذف هدية (للإدارة)
-  const handleDeleteGift = async (id) => {
-    if(window.confirm("هل أنت متأكد من حذف هذه الهدية؟")) {
-      await deleteDoc(doc(db, "gifts", id));
-      setGifts(gifts.filter(g => g.id !== id));
+  const handleDeleteBarcode = async (id) => {
+    if(window.confirm("هل أنت متأكد؟")) {
+      await deleteDoc(doc(db, "barcodes", id));
+      setBarcodes(barcodes.filter(b => b.id !== id));
     }
   };
 
@@ -195,13 +234,11 @@ function App() {
             <h1 style={{fontSize: '22px', margin: '0 0 10px 0'}}>مرحباً بك في مجمع اسعد العزاوي</h1>
             <p style={{margin: 0, fontSize: '14px'}}>اكتشف أفضل العروض والخدمات</p>
           </div>
-
           {user && (
             <button style={styles.btnScan} onClick={startScanner}>
               <FaQrcode /> مسح الباركود لكسب النقاط
             </button>
           )}
-
           <div style={{...styles.sectionTitle, marginTop: '30px'}}>
             <h3>الوكلاء</h3>
             <span style={{color: primaryColor, cursor: 'pointer', fontSize: '14px'}} onClick={() => setCurrentPage('agents')}>عرض المزيد</span>
@@ -264,20 +301,14 @@ function App() {
           <div style={styles.profileBox}>
             <h2 style={{color: darkColor}}>مرحباً بك 👋</h2>
             <p style={{color: '#666', marginTop: '10px'}}>{user.email}</p>
-            
-            <div style={styles.pointsBadge}>
-              رصيدك الحالي: {userPoints} نقطة
-            </div>
-            
+            <div style={styles.pointsBadge}>رصيدك الحالي: {userPoints} نقطة</div>
             <p style={{color: '#666', marginBottom: '20px'}}>قم بمسح الباركود لكسب المزيد من النقاط!</p>
             
-            {/* لوحة الإدارة تظهر فقط للمدير */}
             {user.email === ADMIN_EMAIL && (
               <button style={{...styles.btnSubmit, marginBottom: '10px', backgroundColor: '#4CAF50'}} onClick={() => setCurrentPage('admin')}>
                 <FaCog /> لوحة تحكم الإدارة
               </button>
             )}
-
             <button style={styles.btnLogout} onClick={handleLogout}><FaSignOutAlt /> تسجيل الخروج</button>
           </div>
         );
@@ -286,14 +317,8 @@ function App() {
           <div style={styles.formBox}>
             <h2 style={styles.formTitle}>تسجيل الدخول</h2>
             <form onSubmit={handleLogin}>
-              <div style={styles.inputGroup}>
-                <FaEnvelope color="#666" />
-                <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div style={styles.inputGroup}>
-                <FaLock color="#666" />
-                <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
+              <div style={styles.inputGroup}><FaEnvelope color="#666" /><input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><FaLock color="#666" /><input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
               <button type="submit" style={styles.btnSubmit}>دخول</button>
             </form>
             {message && <p style={styles.messageBox}>{message}</p>}
@@ -306,18 +331,9 @@ function App() {
         <div style={styles.formBox}>
           <h2 style={styles.formTitle}>إنشاء حساب جديد</h2>
           <form onSubmit={handleRegister}>
-            <div style={styles.inputGroup}>
-              <FaUserPlus color="#666" />
-              <input type="text" placeholder="الاسم الكامل" style={styles.input} value={name} onChange={(e) => setName(e.target.value)} required />
-            </div>
-            <div style={styles.inputGroup}>
-              <FaEnvelope color="#666" />
-              <input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            <div style={styles.inputGroup}>
-              <FaLock color="#666" />
-              <input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
+            <div style={styles.inputGroup}><FaUserPlus color="#666" /><input type="text" placeholder="الاسم الكامل" style={styles.input} value={name} onChange={(e) => setName(e.target.value)} required /></div>
+            <div style={styles.inputGroup}><FaEnvelope color="#666" /><input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+            <div style={styles.inputGroup}><FaLock color="#666" /><input type="password" placeholder="كلمة المرور" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
             <button type="submit" style={styles.btnSubmit}>تسجيل</button>
           </form>
           {message && <p style={styles.messageBox}>{message}</p>}
@@ -325,23 +341,17 @@ function App() {
         </div>
       );
     } else if (currentPage === 'admin') {
-      // صفحة الإدارة
       return (
         <div>
           <h2 style={{color: darkColor, marginBottom: '20px'}}>لوحة تحكم الإدارة</h2>
           
+          {/* إدارة الهدايا */}
           <div style={styles.adminBox}>
-            <h3 style={styles.adminTitle}>إضافة هدية جديدة</h3>
+            <h3 style={styles.adminTitle}><FaGift /> إضافة هدية جديدة</h3>
             <form onSubmit={handleAddGift}>
-              <div style={styles.inputGroup}>
-                <input type="text" placeholder="اسم الهدية" style={styles.input} value={newGiftTitle} onChange={(e) => setNewGiftTitle(e.target.value)} required />
-              </div>
-              <div style={styles.inputGroup}>
-                <input type="number" placeholder="تكلفة النقاط" style={styles.input} value={newGiftCost} onChange={(e) => setNewGiftCost(e.target.value)} required />
-              </div>
-              <div style={styles.inputGroup}>
-                <input type="text" placeholder="رابط الصورة (اختياري)" style={styles.input} value={newGiftImage} onChange={(e) => setNewGiftImage(e.target.value)} />
-              </div>
+              <div style={styles.inputGroup}><input type="text" placeholder="اسم الهدية" style={styles.input} value={newGiftTitle} onChange={(e) => setNewGiftTitle(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="number" placeholder="تكلفة النقاط" style={styles.input} value={newGiftCost} onChange={(e) => setNewGiftCost(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="text" placeholder="رابط الصورة" style={styles.input} value={newGiftImage} onChange={(e) => setNewGiftImage(e.target.value)} /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#4CAF50'}}><FaPlus /> إضافة الهدية</button>
             </form>
           </div>
@@ -350,11 +360,28 @@ function App() {
             <h3 style={styles.adminTitle}>الهدايا الحالية</h3>
             {gifts.map(gift => (
               <div key={gift.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                  <img src={gift.image} style={{width: '40px', height: '40px', borderRadius: '5px', objectFit: 'cover'}} />
-                  <span>{gift.title} - {gift.cost} نقطة</span>
-                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}><img src={gift.image} style={{width: '40px', height: '40px', borderRadius: '5px', objectFit: 'cover'}} /><span>{gift.title} - {gift.cost} نقطة</span></div>
                 <button style={styles.btnDelete} onClick={() => handleDeleteGift(gift.id)}><FaTrash /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* إدارة الباركودات */}
+          <div style={styles.adminBox}>
+            <h3 style={styles.adminTitle}><FaBarcode /> إضافة باركود جديد</h3>
+            <form onSubmit={handleAddBarcode}>
+              <div style={styles.inputGroup}><input type="text" placeholder="رقم الباركود (مثال: 123456)" style={styles.input} value={newBarcodeCode} onChange={(e) => setNewBarcodeCode(e.target.value)} required /></div>
+              <div style={styles.inputGroup}><input type="number" placeholder="النقاط المضافة" style={styles.input} value={newBarcodePoints} onChange={(e) => setNewBarcodePoints(e.target.value)} required /></div>
+              <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#2196F3'}}><FaPlus /> إضافة الباركود</button>
+            </form>
+          </div>
+
+          <div style={styles.adminBox}>
+            <h3 style={styles.adminTitle}>الباركودات المسجلة</h3>
+            {barcodes.map(barcode => (
+              <div key={barcode.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0'}}>
+                <span>{barcode.code} - {barcode.points} نقطة</span>
+                <button style={styles.btnDelete} onClick={() => handleDeleteBarcode(barcode.id)}><FaTrash /></button>
               </div>
             ))}
           </div>
