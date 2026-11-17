@@ -19,37 +19,33 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_EMAIL = "swnyszny0@gmail.com"; 
+const WHATSAPP_NUMBER = "9647714983580"; // رقم الواتساب الخاص بك
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [user, setUser] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
   
-  // بيانات الهدايا
   const [gifts, setGifts] = useState([]);
   const [newGiftTitle, setNewGiftTitle] = useState('');
   const [newGiftCost, setNewGiftCost] = useState('');
   const [newGiftImage, setNewGiftImage] = useState('');
 
-  // بيانات الباركودات
   const [barcodes, setBarcodes] = useState([]);
   const [newBarcodeCode, setNewBarcodeCode] = useState('');
   const [newBarcodePoints, setNewBarcodePoints] = useState('');
 
-  // بيانات الوكلاء والمنتجات
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [agentProducts, setAgentProducts] = useState([]);
 
-  // بيانات إدارة الوكلاء
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentLocation, setNewAgentLocation] = useState('');
   const [newAgentImage, setNewAgentImage] = useState('');
   
-  // بيانات إدارة المنتجات (تمت إضافة الصورة)
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrice, setNewProductPrice] = useState('');
-  const [newProductImage, setNewProductImage] = useState(''); // جديد
+  const [newProductImage, setNewProductImage] = useState('');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -170,7 +166,6 @@ function App() {
     }, 100);
   };
 
-  // دوال الإدارة
   const handleAddGift = async (e) => {
     e.preventDefault();
     try {
@@ -204,7 +199,6 @@ function App() {
     } catch (error) { alert("حدث خطأ"); }
   };
 
-  // دالة إضافة منتج مع صورة
   const handleAddProduct = async (e) => {
     e.preventDefault();
     if (!selectedAgent) return;
@@ -212,7 +206,7 @@ function App() {
       await addDoc(collection(db, "products"), { 
         name: newProductName, 
         price: newProductPrice, 
-        image: newProductImage || 'https://via.placeholder.com/150', // حفظ رابط الصورة
+        image: newProductImage || 'https://via.placeholder.com/150',
         agentId: selectedAgent.id 
       });
       alert("تمت إضافة المنتج!");
@@ -232,7 +226,7 @@ function App() {
     topBar: { backgroundColor: '#fff', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
     icons: { display: 'flex', gap: '15px', fontSize: '20px', cursor: 'pointer', color: '#666' },
     logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
-    logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' },
+    logoImg: { width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }, // الشعار الجديد هنا
     logoText: { fontSize: '12px', fontWeight: 'bold', color: '#333', marginTop: '5px' },
     main: { padding: '20px', paddingBottom: '80px' },
     banner: { background: '#f0f0f0', color: '#333', padding: '20px', borderRadius: '15px', textAlign: 'center', marginBottom: '20px' },
@@ -244,7 +238,7 @@ function App() {
     searchBar: { width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px' },
     productGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' },
     productCard: { background: '#fff', padding: '15px', borderRadius: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', position: 'relative' },
-    productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }, // تم تعديلها لتستوعب الصورة
+    productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' },
     bookmarkIcon: { position: 'absolute', top: '10px', right: '10px', color: '#ccc', cursor: 'pointer' },
     productName: { fontSize: '16px', fontWeight: 'bold', color: '#333', margin: '0 0 5px 0', textAlign: 'center' },
     productPrice: { fontSize: '14px', color: '#666', margin: '0 0 15px 0', textAlign: 'center' },
@@ -338,9 +332,12 @@ function App() {
                 <img src={product.image} alt={product.name} style={styles.productImg} />
                 <p style={styles.productName}>{product.name}</p>
                 <p style={styles.productPrice}>{product.price}</p>
-                <button style={styles.whatsappBtn}>
-                  <FaWhatsapp /> تواصل عبر
-                </button>
+                {/* هنا تم ربط زر الواتساب برقمك */}
+                <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=مرحباً، أنا مهتم بمنتج: ${product.name}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none'}}>
+                  <button style={styles.whatsappBtn}>
+                    <FaWhatsapp /> تواصل عبر
+                  </button>
+                </a>
               </div>
             ))}
           </div>
@@ -477,7 +474,6 @@ function App() {
             ))}
           </div>
 
-          {/* إدارة المنتجات مع إضافة الصورة */}
           <div style={styles.adminBox}>
             <h3 style={styles.adminTitle}><FaPlus /> إضافة منتج لوكيل</h3>
             <div style={{marginBottom: '15px'}}>
@@ -511,7 +507,8 @@ function App() {
           <FaBars onClick={() => setCurrentPage('menu')} style={{fontSize: '24px', cursor: 'pointer', color: '#333'}} />
         </div>
         <div style={styles.logoArea}>
-          <img src="https://via.placeholder.com/50/0054e9/FFFFFF?text=LOGO" alt="Logo" style={styles.logoImg} />
+          {/* الشعار الجديد هنا */}
+          <img src="https://static.iimg.live/uploads/fantastic-picture-5667.jpg" alt="Logo" style={styles.logoImg} />
           <div style={styles.logoText}>مجمع اسعد العزاوي</div>
         </div>
         <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
