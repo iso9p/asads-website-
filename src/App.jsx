@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark, FaIdCard } from 'react-icons/fa';
+import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark, FaIdCard, FaCheckCircle } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy } from "firebase/firestore";
 import { Html5QrcodeScanner } from "html5-qrcode";
-// استيراد مكتبة إنشاء QR
 import { QRCodeSVG } from 'qrcode.react'; 
 
 const firebaseConfig = {
@@ -21,12 +20,16 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_EMAIL = "swnyszny0@gmail.com"; 
+const WHATSAPP_NUMBER = "9647714983580";
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [user, setUser] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
   
+  // حالات منع الضغط المتكرر
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
   const [gifts, setGifts] = useState([]);
   const [newGiftTitle, setNewGiftTitle] = useState('');
   const [newGiftCost, setNewGiftCost] = useState('');
@@ -44,7 +47,8 @@ function App() {
   const [newProductPrice, setNewProductPrice] = useState('');
   const [newProductImage, setNewProductImage] = useState('');
 
-  // حالات إدارة المسؤول
+  const [redeemRequests, setRedeemRequests] = useState([]);
+
   const [adminPointsToAdd, setAdminPointsToAdd] = useState('');
   const [scannedUserId, setScannedUserId] = useState(null);
   const [scannedUserName, setScannedUserName] = useState('');
@@ -83,6 +87,10 @@ function App() {
 
       const agentsSnapshot = await getDocs(collection(db, "agents"));
       setAgents(agentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      
+      const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
+      const reqSnapshot = await getDocs(q);
+      setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
     fetchData();
   }, []);
@@ -124,19 +132,37 @@ function App() {
     setCurrentPage('home');
   };
 
-  const redeemGift = async (cost) => {
+  // دالة الاستبدال المحمية
+  const redeemGift = async (gift) => {
     if (!user) return alert("يجب تسجيل الدخول أولاً");
-    if (userPoints < cost) return alert("نقاطك غير كافية!");
+    if (isRedeeming) return; // منع التكرار
+    if (userPoints < gift.cost) return alert("نقاطك غير كافية!");
+    
+    setIsRedeeming(true);
+    
     try {
-      await updateDoc(doc(db, "users", user.uid), { points: increment(-cost) });
-      setUserPoints(prev => prev - cost);
-      alert("تم استبدال الهدية بنجاح!");
-    } catch(e) { alert("حدث خطأ في الاستبدال"); }
+      await updateDoc(doc(db, "users", user.uid), { points: increment(-gift.cost) });
+      setUserPoints(prev => prev - gift.cost);
+      
+      await addDoc(collection(db, "redeem_requests"), {
+        userEmail: user.email,
+        userId: user.uid,
+        giftName: gift.title,
+        giftCost: gift.cost,
+        status: "معلق",
+        createdAt: new Date()
+      });
+
+      alert("تم استبدال الهدية بنجاح! طلبك قيد المعالجة من قبل الإدارة.");
+    } catch(e) { 
+      console.error(e);
+      alert("حدث خطأ في الاستبدال"); 
+    } finally {
+      setIsRedeeming(false);
+    }
   };
 
   // --- دوال المسؤول ---
-  
-  // 1. بدء مسح QR العميل
   const startAdminScanner = () => {
     setCurrentPage('adminScanner');
     setScannedUserId(null);
@@ -144,7 +170,6 @@ function App() {
       const scanner = new Html5QrcodeScanner("admin-reader", { fps: 10, qrbox: 250 });
       scanner.render((decodedText) => {
         scanner.clear();
-        // الرابط سيكون https://.../user/UID_HERE
         const uid = decodedText.split('/user/')[1];
         if (uid) {
           setScannedUserId(uid);
@@ -158,7 +183,6 @@ function App() {
     }, 100);
   };
 
-  // 2. جلب اسم العميل بعد مسح الكود
   const fetchClientName = async (uid) => {
     const docRef = doc(db, "users", uid);
     const docSnap = await getDoc(docRef);
@@ -167,7 +191,6 @@ function App() {
     }
   };
 
-  // 3. إعطاء النقاط للعميل
   const handleGivePointsToClient = async (e) => {
     e.preventDefault();
     if (!scannedUserId || !adminPointsToAdd) return;
@@ -184,14 +207,19 @@ function App() {
     }
   };
 
-  // --- دوال الإدارة (الهدايا والوكلاء) ---
   const handleAddGift = async (e) => { e.preventDefault(); await addDoc(collection(db, "gifts"), { title: newGiftTitle, cost: parseInt(newGiftCost), image: newGiftImage }); window.location.reload(); };
   const handleDeleteGift = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "gifts", id)); setGifts(gifts.filter(g => g.id !== id)); } };
   const handleAddAgent = async (e) => { e.preventDefault(); await addDoc(collection(db, "agents"), { name: newAgentName, location: newAgentLocation, image: newAgentImage }); window.location.reload(); };
   const handleDeleteAgent = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "agents", id)); setAgents(agents.filter(a => a.id !== id)); } };
   const handleAddProduct = async (e) => { e.preventDefault(); if (!selectedAgent) return; await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, image: newProductImage, agentId: selectedAgent.id }); window.location.reload(); };
+  
+  const handleCompleteRequest = async (id) => {
+    if(window.confirm("هل تم تسليم الهدية للعميل؟")) {
+      await deleteDoc(doc(db, "redeem_requests", id));
+      setRedeemRequests(redeemRequests.filter(r => r.id !== id));
+    }
+  };
 
-  // التنسيقات
   const styles = {
     container: { fontFamily: 'sans-serif', direction: 'rtl', minHeight: '100vh', backgroundColor: '#f4f6f9', margin: 0, padding: 0, color: '#333' },
     topBar: { backgroundColor: '#fff', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
@@ -217,7 +245,7 @@ function App() {
     giftCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     giftTitle: { fontSize: '16px', fontWeight: 'bold', margin: '0 0 5px 0', color: darkColor },
     giftPoints: { fontSize: '14px', color: primaryColor, fontWeight: 'bold', margin: 0 },
-    btnRedeem: { backgroundColor: primaryColor, color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
+    btnRedeem: { backgroundColor: primaryColor, color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', opacity: 1 },
     formBox: { background: 'white', padding: '30px 20px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', maxWidth: '400px', margin: '0 auto' },
     formTitle: { textAlign: 'center', color: darkColor, marginBottom: '20px' },
     inputGroup: { display: 'flex', alignItems: 'center', backgroundColor: '#f4f6f9', borderRadius: '8px', padding: '10px', marginBottom: '15px', border: '1px solid #ddd' },
@@ -231,7 +259,9 @@ function App() {
     adminBox: { background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' },
     adminTitle: { color: darkColor, borderBottom: `2px solid ${primaryColor}`, paddingBottom: '10px', marginBottom: '15px' },
     btnDelete: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
-    qrContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '15px', border: '2px solid #eee' }
+    btnComplete: { backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
+    qrContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '15px', border: '2px solid #eee' },
+    requestCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', borderRight: `4px solid #FF9800`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
   };
 
   const renderPage = () => {
@@ -294,7 +324,13 @@ function App() {
                 <img src={gift.image} alt={gift.title} style={{width: '50px', height: '50px', borderRadius: '8px'}} />
                 <div><p style={styles.giftTitle}>{gift.title}</p><p style={styles.giftPoints}>{gift.cost} نقطة</p></div>
               </div>
-              <button style={styles.btnRedeem} onClick={() => redeemGift(gift.cost)}>استبدال</button>
+              <button 
+                style={{...styles.btnRedeem, opacity: isRedeeming ? 0.5 : 1}} 
+                onClick={() => redeemGift(gift)} 
+                disabled={isRedeeming}
+              >
+                {isRedeeming ? 'جاري المعالجة...' : 'استبدال'}
+              </button>
             </div>
           ))}
         </>
@@ -307,7 +343,6 @@ function App() {
             <p style={{color: '#666', marginTop: '10px'}}>{user.email}</p>
             <div style={styles.pointsBadge}>رصيدك الحالي: {userPoints} نقطة</div>
             
-            {/* زر عرض QR للعميل */}
             <button style={{...styles.btnSubmit, backgroundColor: '#2196F3', marginBottom: '10px'}} onClick={() => setCurrentPage('showMyQR')}>
               <FaIdCard /> عرض رمز العميل (QR)
             </button>
@@ -346,15 +381,11 @@ function App() {
           <p style={styles.linkText} onClick={() => setCurrentPage('account')}>لديك حساب بالفعل؟ تسجيل الدخول</p>
         </div>
       );
-    } 
-    
-    // --- شاشات المسؤول ---
-    else if (currentPage === 'showMyQR') {
+    } else if (currentPage === 'showMyQR') {
       return (
         <div style={styles.qrContainer}>
           <h2 style={{color: darkColor, marginBottom: '10px'}}>رمز العميل الخاص بك</h2>
           <p style={{color: '#666', marginBottom: '20px', textAlign: 'center'}}>اعرض هذا الرمز للمسؤول لإضافة النقاط إلى حسابك.</p>
-          {/* إنشاء QR يحتوي على رابط وهمي مع UID العميل */}
           <QRCodeSVG value={`https://asads-mall.com/user/${user.uid}`} size={250} />
           <button style={{...styles.btnSubmit, marginTop: '30px', backgroundColor: '#eb445a'}} onClick={() => setCurrentPage('account')}>رجوع</button>
         </div>
@@ -381,18 +412,30 @@ function App() {
           <button style={{...styles.btnSubmit, marginTop: '10px', backgroundColor: '#eb445a'}} onClick={() => setCurrentPage('admin')}>إلغاء</button>
         </div>
       );
-    }
-
-    // --- لوحة الإدارة ---
-    else if (currentPage === 'admin') {
+    } else if (currentPage === 'admin') {
       return (
         <div>
           <h2 style={{color: darkColor, marginBottom: '20px'}}>لوحة تحكم الإدارة</h2>
           
-          {/* زر مسح QR العميل */}
+          <div style={{...styles.adminBox, border: '2px solid #FF9800'}}>
+            <h3 style={{color: '#E65100', marginBottom: '15px'}}>طلبات استبدال الهدايا ({redeemRequests.length})</h3>
+            {redeemRequests.length === 0 ? <p style={{color: '#888'}}>لا توجد طلبات حالياً.</p> : (
+              redeemRequests.map(req => (
+                <div key={req.id} style={styles.requestCard}>
+                  <div>
+                    <p style={{margin: '0 0 5px 0', fontWeight: 'bold', fontSize: '14px'}}>{req.userEmail}</p>
+                    <p style={{margin: 0, fontSize: '13px', color: '#666'}}>طلب: {req.giftName} ({req.giftCost} نقطة)</p>
+                  </div>
+                  <button style={styles.btnComplete} onClick={() => handleCompleteRequest(req.id)}>
+                    <FaCheckCircle /> تم التسليم
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
           <div style={{...styles.adminBox, backgroundColor: '#E3F2FD', border: '2px solid #2196F3'}}>
             <h3 style={{color: '#1565C0', marginBottom: '10px'}}>شاشة المسح للمسؤول</h3>
-            <p style={{fontSize: '14px', color: '#555', marginBottom: '15px'}}>اضغط هنا لمسح رمز QR الخاص بالعميل وإضافة النقاط له.</p>
             <button style={{...styles.btnSubmit, backgroundColor: '#2196F3'}} onClick={startAdminScanner}><FaQrcode /> فتح الماسح</button>
           </div>
 
