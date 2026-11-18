@@ -177,7 +177,7 @@ function App() {
 
       alert("تم استبدال الهدية بنجاح! طلبك قيد المعالجة من قبل الإدارة.");
       fetchMyTransactions(user.uid);
-      fetchAllData(); // تحديث البيانات للإدارة
+      fetchAllData();
     } catch(e) { 
       console.error(e);
       alert("حدث خطأ في الاستبدال"); 
@@ -235,7 +235,7 @@ function App() {
       setAdminPointsToAdd('');
       setScannedUserId(null);
       setCurrentPage('admin');
-      fetchAllData(); // تحديث السجلات
+      fetchAllData();
     } catch (error) {
       alert("حدث خطأ أثناء إضافة النقاط.");
     }
@@ -315,7 +315,7 @@ function App() {
             <span style={{color: primaryColor, cursor: 'pointer', fontSize: '14px'}} onClick={() => setCurrentPage('agents')}>عرض المزيد</span>
           </div>
           <div style={styles.agentsGrid}>
-            {agents.slice(0, 3).map(agent => (
+            {agents.map(agent => (
               <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
                 <img src={agent.image} alt={agent.name} style={styles.agentImg} /><p style={styles.agentName}>{agent.name}</p>
               </div>
@@ -326,15 +326,12 @@ function App() {
     } else if (currentPage === 'agents') {
       return (
         <>
-          <h2 style={{color: '#333', margin: '0 0 20px 0'}}>المجموعات</h2>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+          <h2 style={{color: '#333', margin: '0 0 20px 0', textAlign: 'center'}}>المجموعات</h2>
+          {/* عرض الوكلاء في شبكة مثل الصفحة الرئيسية */}
+          <div style={styles.agentsGrid}>
             {agents.map(agent => (
-              <div key={agent.id} style={{background: '#fff', padding: '20px', borderRadius: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'}} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-                  <img src={agent.image} alt={agent.name} style={{width: '50px', height: '50px', borderRadius: '50%'}} />
-                  <h3 style={{margin: 0, fontSize: '16px', color: '#333'}}>{agent.name}</h3>
-                </div>
-                <FaArrowRight style={{color: '#ccc'}} />
+              <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
+                <img src={agent.image} alt={agent.name} style={styles.agentImg} /><p style={styles.agentName}>{agent.name}</p>
               </div>
             ))}
           </div>
@@ -350,7 +347,6 @@ function App() {
                 <img src={product.image} alt={product.name} style={styles.productImg} />
                 <p style={styles.productName}>{product.name}</p>
                 <p style={styles.productPrice}>{product.price}</p>
-                {/* إعادة زر الواتساب */}
                 <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=مرحباً، أنا مهتم بمنتج: ${product.name}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none'}}>
                   <button style={styles.whatsappBtn}>
                     <FaWhatsapp /> تواصل عبر
@@ -513,7 +509,6 @@ function App() {
               <div style={styles.inputGroup}><input type="text" placeholder="رابط الصورة" style={styles.input} value={newGiftImage} onChange={(e) => setNewGiftImage(e.target.value)} /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#4CAF50'}}><FaPlus /> إضافة الهدية</button>
             </form>
-            {/* قائمة الهدايا مع الحذف */}
             <div style={{marginTop: '15px'}}>
               {gifts.map(g => (
                 <div key={g.id} style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '5px 0'}}>
@@ -532,7 +527,6 @@ function App() {
               <div style={styles.inputGroup}><input type="text" placeholder="رابط صورة الوكيل" style={styles.input} value={newAgentImage} onChange={(e) => setNewAgentImage(e.target.value)} /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#9C27B0'}}><FaPlus /> إضافة الوكيل</button>
             </form>
-            {/* قائمة الوكلاء مع الحذف */}
             <div style={{marginTop: '15px'}}>
               {agents.map(a => (
                 <div key={a.id} style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '5px 0'}}>
