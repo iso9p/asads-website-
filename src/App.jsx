@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark, FaIdCard, FaCheckCircle } from 'react-icons/fa';
+import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark, FaIdCard, FaCheckCircle, FaHistory } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy } from "firebase/firestore";
@@ -27,7 +27,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
   
-  // حالات منع الضغط المتكرر
   const [isRedeeming, setIsRedeeming] = useState(false);
 
   const [gifts, setGifts] = useState([]);
@@ -48,6 +47,10 @@ function App() {
   const [newProductImage, setNewProductImage] = useState('');
 
   const [redeemRequests, setRedeemRequests] = useState([]);
+
+  // الإشعارات والسجل
+  const [myTransactions, setMyTransactions] = useState([]);
+  const [allTransactions, setAllTransactions] = useState([]);
 
   const [adminPointsToAdd, setAdminPointsToAdd] = useState('');
   const [scannedUserId, setScannedUserId] = useState(null);
@@ -73,12 +76,20 @@ function App() {
           await setDoc(docRef, { points: 0, email: currentUser.email });
           setUserPoints(0);
         }
+        fetchMyTransactions(currentUser.uid);
       } else {
         setUserPoints(0);
+        setMyTransactions([]);
       }
     });
     return () => unsubscribe();
   }, []);
+
+  const fetchMyTransactions = async (uid) => {
+    const q = query(collection(db, "transactions"), where("userId", "==", uid), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+    setMyTransactions(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,6 +102,11 @@ function App() {
       const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
       const reqSnapshot = await getDocs(q);
       setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      // جلب كل العمليات للمسؤول
+      const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
+      const tSnapshot = await getDocs(tq);
+      setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
     fetchData();
   }, []);
@@ -132,10 +148,10 @@ function App() {
     setCurrentPage('home');
   };
 
-  // دالة الاستبدال المحمية
+  // دالة الاستبدال (تخصم وتنشئ طلب وسجل)
   const redeemGift = async (gift) => {
     if (!user) return alert("يجب تسجيل الدخول أولاً");
-    if (isRedeeming) return; // منع التكرار
+    if (isRedeeming) return; 
     if (userPoints < gift.cost) return alert("نقاطك غير كافية!");
     
     setIsRedeeming(true);
@@ -144,6 +160,7 @@ function App() {
       await updateDoc(doc(db, "users", user.uid), { points: increment(-gift.cost) });
       setUserPoints(prev => prev - gift.cost);
       
+      // إنشاء طلب
       await addDoc(collection(db, "redeem_requests"), {
         userEmail: user.email,
         userId: user.uid,
@@ -153,7 +170,18 @@ function App() {
         createdAt: new Date()
       });
 
+      // إضافة سجل للعميل
+      await addDoc(collection(db, "transactions"), {
+        userId: user.uid,
+        userEmail: user.email,
+        amount: -gift.cost,
+        type: "استبدال هدية",
+        details: `تم استبدال ${gift.cost} نقطة بـ ${gift.title}`,
+        createdAt: new Date()
+      });
+
       alert("تم استبدال الهدية بنجاح! طلبك قيد المعالجة من قبل الإدارة.");
+      fetchMyTransactions(user.uid);
     } catch(e) { 
       console.error(e);
       alert("حدث خطأ في الاستبدال"); 
@@ -198,10 +226,25 @@ function App() {
       await updateDoc(doc(db, "users", scannedUserId), { 
         points: increment(parseInt(adminPointsToAdd)) 
       });
+
+      // إضافة سجل للعميل
+      await addDoc(collection(db, "transactions"), {
+        userId: scannedUserId,
+        userEmail: scannedUserName,
+        amount: parseInt(adminPointsToAdd),
+        type: "إضافة نقاط",
+        details: `تم إضافة ${adminPointsToAdd} نقطة بواسطة الإدارة`,
+        createdAt: new Date()
+      });
+
       alert(`تم إضافة ${adminPointsToAdd} نقطة للعميل بنجاح!`);
       setAdminPointsToAdd('');
       setScannedUserId(null);
       setCurrentPage('admin');
+      // إعادة جلب السجلات
+      const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
+      const tSnapshot = await getDocs(tq);
+      setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (error) {
       alert("حدث خطأ أثناء إضافة النقاط.");
     }
@@ -218,6 +261,13 @@ function App() {
       await deleteDoc(doc(db, "redeem_requests", id));
       setRedeemRequests(redeemRequests.filter(r => r.id !== id));
     }
+  };
+
+  // تنسيق التاريخ
+  const formatDate = (date) => {
+    if (!date) return '';
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const styles = {
@@ -261,7 +311,8 @@ function App() {
     btnDelete: { backgroundColor: '#eb445a', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
     btnComplete: { backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '8px', borderRadius: '5px', cursor: 'pointer' },
     qrContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px', padding: '20px', background: '#fff', borderRadius: '15px', border: '2px solid #eee' },
-    requestCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', borderRight: `4px solid #FF9800`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+    requestCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', borderRight: `4px solid #FF9800`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    transactionCard: { background: 'white', padding: '15px', borderRadius: '10px', marginBottom: '10px', borderRight: `4px solid ${primaryColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
   };
 
   const renderPage = () => {
@@ -333,6 +384,25 @@ function App() {
               </button>
             </div>
           ))}
+        </>
+      );
+    } else if (currentPage === 'notifications') {
+      return (
+        <>
+          <h2 style={{color: '#333', margin: '0 0 20px 0'}}>سجل إشعاراتي</h2>
+          {myTransactions.length === 0 ? <p style={{textAlign: 'center', color: '#666'}}>لا توجد إشعارات حتى الآن.</p> : (
+            myTransactions.map(t => (
+              <div key={t.id} style={styles.transactionCard}>
+                <div>
+                  <p style={{margin: '0 0 5px 0', fontWeight: 'bold', fontSize: '14px', color: t.amount > 0 ? '#4CAF50' : '#eb445a'}}>
+                    {t.type} ({t.amount > 0 ? `+${t.amount}` : t.amount})
+                  </p>
+                  <p style={{margin: 0, fontSize: '12px', color: '#888'}}>{t.details}</p>
+                  <p style={{margin: '5px 0 0 0', fontSize: '10px', color: '#aaa'}}>{formatDate(t.createdAt)}</p>
+                </div>
+              </div>
+            ))
+          )}
         </>
       );
     } else if (currentPage === 'account') {
@@ -476,6 +546,22 @@ function App() {
               </form>
             )}
           </div>
+
+          {/* سجل العمليات للمسؤول */}
+          <div style={{...styles.adminBox, backgroundColor: '#f9f9f9'}}>
+            <h3 style={styles.adminTitle}><FaHistory /> سجل العمليات (للإدارة)</h3>
+            {allTransactions.length === 0 ? <p style={{color: '#888'}}>لا توجد عمليات حتى الآن.</p> : (
+              allTransactions.map(t => (
+                <div key={t.id} style={styles.transactionCard}>
+                  <div>
+                    <p style={{margin: '0 0 5px 0', fontWeight: 'bold', fontSize: '13px'}}>{t.userEmail}</p>
+                    <p style={{margin: 0, fontSize: '12px', color: t.amount > 0 ? '#4CAF50' : '#eb445a'}}>{t.type} ({t.amount > 0 ? `+${t.amount}` : t.amount})</p>
+                    <p style={{margin: '5px 0 0 0', fontSize: '10px', color: '#aaa'}}>{formatDate(t.createdAt)}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       );
     }
@@ -493,7 +579,11 @@ function App() {
           <div style={styles.logoText}>مجمع اسعد العزاوي</div>
         </div>
         <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-           <FaBell style={{fontSize: '20px', color: '#333'}} />
+           {/* زر الإشعارات */}
+           <div style={{position: 'relative', cursor: 'pointer'}} onClick={() => setCurrentPage('notifications')}>
+              <FaBell style={{fontSize: '20px', color: '#333'}} />
+              {myTransactions.length > 0 && <span style={{position: 'absolute', top: '-5px', right: '-5px', background: 'red', color: 'white', borderRadius: '50%', padding: '2px 5px', fontSize: '10px'}}>{myTransactions.length}</span>}
+           </div>
            <FaGift style={{fontSize: '20px', color: '#333'}} onClick={() => setCurrentPage('gifts')} />
         </div>
       </header>
