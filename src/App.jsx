@@ -47,8 +47,6 @@ function App() {
   const [newProductImage, setNewProductImage] = useState('');
 
   const [redeemRequests, setRedeemRequests] = useState([]);
-
-  // الإشعارات والسجل
   const [myTransactions, setMyTransactions] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
 
@@ -91,24 +89,24 @@ function App() {
     setMyTransactions(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
+  const fetchAllData = async () => {
+    const giftsSnapshot = await getDocs(collection(db, "gifts"));
+    setGifts(giftsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    const agentsSnapshot = await getDocs(collection(db, "agents"));
+    setAgents(agentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    
+    const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
+    const reqSnapshot = await getDocs(q);
+    setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
+    const tSnapshot = await getDocs(tq);
+    setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      const giftsSnapshot = await getDocs(collection(db, "gifts"));
-      setGifts(giftsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      const agentsSnapshot = await getDocs(collection(db, "agents"));
-      setAgents(agentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      
-      const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
-      const reqSnapshot = await getDocs(q);
-      setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      // جلب كل العمليات للمسؤول
-      const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
-      const tSnapshot = await getDocs(tq);
-      setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-    fetchData();
+    fetchAllData();
   }, []);
 
   useEffect(() => {
@@ -148,7 +146,6 @@ function App() {
     setCurrentPage('home');
   };
 
-  // دالة الاستبدال (تخصم وتنشئ طلب وسجل)
   const redeemGift = async (gift) => {
     if (!user) return alert("يجب تسجيل الدخول أولاً");
     if (isRedeeming) return; 
@@ -160,7 +157,6 @@ function App() {
       await updateDoc(doc(db, "users", user.uid), { points: increment(-gift.cost) });
       setUserPoints(prev => prev - gift.cost);
       
-      // إنشاء طلب
       await addDoc(collection(db, "redeem_requests"), {
         userEmail: user.email,
         userId: user.uid,
@@ -170,7 +166,6 @@ function App() {
         createdAt: new Date()
       });
 
-      // إضافة سجل للعميل
       await addDoc(collection(db, "transactions"), {
         userId: user.uid,
         userEmail: user.email,
@@ -182,6 +177,7 @@ function App() {
 
       alert("تم استبدال الهدية بنجاح! طلبك قيد المعالجة من قبل الإدارة.");
       fetchMyTransactions(user.uid);
+      fetchAllData(); // تحديث البيانات للإدارة
     } catch(e) { 
       console.error(e);
       alert("حدث خطأ في الاستبدال"); 
@@ -190,7 +186,6 @@ function App() {
     }
   };
 
-  // --- دوال المسؤول ---
   const startAdminScanner = () => {
     setCurrentPage('adminScanner');
     setScannedUserId(null);
@@ -227,7 +222,6 @@ function App() {
         points: increment(parseInt(adminPointsToAdd)) 
       });
 
-      // إضافة سجل للعميل
       await addDoc(collection(db, "transactions"), {
         userId: scannedUserId,
         userEmail: scannedUserName,
@@ -241,29 +235,25 @@ function App() {
       setAdminPointsToAdd('');
       setScannedUserId(null);
       setCurrentPage('admin');
-      // إعادة جلب السجلات
-      const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
-      const tSnapshot = await getDocs(tq);
-      setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      fetchAllData(); // تحديث السجلات
     } catch (error) {
       alert("حدث خطأ أثناء إضافة النقاط.");
     }
   };
 
-  const handleAddGift = async (e) => { e.preventDefault(); await addDoc(collection(db, "gifts"), { title: newGiftTitle, cost: parseInt(newGiftCost), image: newGiftImage }); window.location.reload(); };
-  const handleDeleteGift = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "gifts", id)); setGifts(gifts.filter(g => g.id !== id)); } };
-  const handleAddAgent = async (e) => { e.preventDefault(); await addDoc(collection(db, "agents"), { name: newAgentName, location: newAgentLocation, image: newAgentImage }); window.location.reload(); };
-  const handleDeleteAgent = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "agents", id)); setAgents(agents.filter(a => a.id !== id)); } };
-  const handleAddProduct = async (e) => { e.preventDefault(); if (!selectedAgent) return; await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, image: newProductImage, agentId: selectedAgent.id }); window.location.reload(); };
+  const handleAddGift = async (e) => { e.preventDefault(); await addDoc(collection(db, "gifts"), { title: newGiftTitle, cost: parseInt(newGiftCost), image: newGiftImage }); fetchAllData(); setNewGiftTitle(''); setNewGiftCost(''); setNewGiftImage(''); };
+  const handleDeleteGift = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "gifts", id)); fetchAllData(); } };
+  const handleAddAgent = async (e) => { e.preventDefault(); await addDoc(collection(db, "agents"), { name: newAgentName, location: newAgentLocation, image: newAgentImage }); fetchAllData(); setNewAgentName(''); setNewAgentLocation(''); setNewAgentImage(''); };
+  const handleDeleteAgent = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "agents", id)); fetchAllData(); } };
+  const handleAddProduct = async (e) => { e.preventDefault(); if (!selectedAgent) return; await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, image: newProductImage, agentId: selectedAgent.id }); alert("تمت الإضافة"); setNewProductName(''); setNewProductPrice(''); setNewProductImage(''); };
   
   const handleCompleteRequest = async (id) => {
     if(window.confirm("هل تم تسليم الهدية للعميل؟")) {
       await deleteDoc(doc(db, "redeem_requests", id));
-      setRedeemRequests(redeemRequests.filter(r => r.id !== id));
+      fetchAllData();
     }
   };
 
-  // تنسيق التاريخ
   const formatDate = (date) => {
     if (!date) return '';
     const d = date.toDate ? date.toDate() : new Date(date);
@@ -288,7 +278,7 @@ function App() {
     productImg: { width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' },
     productName: { fontSize: '16px', fontWeight: 'bold', color: '#333', margin: '0 0 5px 0', textAlign: 'center' },
     productPrice: { fontSize: '14px', color: '#666', margin: '0 0 15px 0', textAlign: 'center' },
-    whatsappBtn: { backgroundColor: '#fff', border: '1px solid #25D366', color: '#25D366', padding: '8px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '14px', fontWeight: 'bold' },
+    whatsappBtn: { backgroundColor: '#fff', border: '1px solid #25D366', color: '#25D366', padding: '8px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '14px', fontWeight: 'bold', width: '100%' },
     bottomNav: { position: 'fixed', bottom: 0, width: '100%', backgroundColor: 'white', display: 'flex', justifyContent: 'space-around', padding: '10px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)', zIndex: 100 },
     navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', color: '#666', gap: '5px', cursor: 'pointer' },
     navActive: { color: primaryColor, fontWeight: 'bold' },
@@ -360,6 +350,12 @@ function App() {
                 <img src={product.image} alt={product.name} style={styles.productImg} />
                 <p style={styles.productName}>{product.name}</p>
                 <p style={styles.productPrice}>{product.price}</p>
+                {/* إعادة زر الواتساب */}
+                <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=مرحباً، أنا مهتم بمنتج: ${product.name}`} target="_blank" rel="noopener noreferrer" style={{textDecoration: 'none'}}>
+                  <button style={styles.whatsappBtn}>
+                    <FaWhatsapp /> تواصل عبر
+                  </button>
+                </a>
               </div>
             ))}
           </div>
@@ -517,6 +513,15 @@ function App() {
               <div style={styles.inputGroup}><input type="text" placeholder="رابط الصورة" style={styles.input} value={newGiftImage} onChange={(e) => setNewGiftImage(e.target.value)} /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#4CAF50'}}><FaPlus /> إضافة الهدية</button>
             </form>
+            {/* قائمة الهدايا مع الحذف */}
+            <div style={{marginTop: '15px'}}>
+              {gifts.map(g => (
+                <div key={g.id} style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '5px 0'}}>
+                  <span style={{fontSize: '14px'}}>{g.title} ({g.cost} نقطة)</span>
+                  <button style={styles.btnDelete} onClick={() => handleDeleteGift(g.id)}><FaTrash /></button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={styles.adminBox}>
@@ -527,6 +532,15 @@ function App() {
               <div style={styles.inputGroup}><input type="text" placeholder="رابط صورة الوكيل" style={styles.input} value={newAgentImage} onChange={(e) => setNewAgentImage(e.target.value)} /></div>
               <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#9C27B0'}}><FaPlus /> إضافة الوكيل</button>
             </form>
+            {/* قائمة الوكلاء مع الحذف */}
+            <div style={{marginTop: '15px'}}>
+              {agents.map(a => (
+                <div key={a.id} style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '5px 0'}}>
+                  <span style={{fontSize: '14px'}}>{a.name}</span>
+                  <button style={styles.btnDelete} onClick={() => handleDeleteAgent(a.id)}><FaTrash /></button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={styles.adminBox}>
@@ -547,7 +561,6 @@ function App() {
             )}
           </div>
 
-          {/* سجل العمليات للمسؤول */}
           <div style={{...styles.adminBox, backgroundColor: '#f9f9f9'}}>
             <h3 style={styles.adminTitle}><FaHistory /> سجل العمليات (للإدارة)</h3>
             {allTransactions.length === 0 ? <p style={{color: '#888'}}>لا توجد عمليات حتى الآن.</p> : (
@@ -579,7 +592,6 @@ function App() {
           <div style={styles.logoText}>مجمع اسعد العزاوي</div>
         </div>
         <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-           {/* زر الإشعارات */}
            <div style={{position: 'relative', cursor: 'pointer'}} onClick={() => setCurrentPage('notifications')}>
               <FaBell style={{fontSize: '20px', color: '#333'}} />
               {myTransactions.length > 0 && <span style={{position: 'absolute', top: '-5px', right: '-5px', background: 'red', color: 'white', borderRadius: '50%', padding: '2px 5px', fontSize: '10px'}}>{myTransactions.length}</span>}
