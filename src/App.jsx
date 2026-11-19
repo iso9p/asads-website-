@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FaHome, FaGift, FaBell, FaBars, FaUser, FaLock, FaEnvelope, FaUserPlus, FaQrcode, FaStore, FaSignOutAlt, FaPlus, FaCog, FaTrash, FaBarcode, FaArrowRight, FaWhatsapp, FaBookmark, FaIdCard, FaCheckCircle, FaHistory } from 'react-icons/fa';
 import { initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy } from "firebase/firestore";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { QRCodeSVG } from 'qrcode.react'; 
@@ -57,6 +57,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [resetEmail, setResetEmail] = useState(''); // متغير جديد
   const [message, setMessage] = useState('');
 
   const primaryColor = '#0054e9';
@@ -138,6 +139,18 @@ function App() {
       setCurrentPage('account');
     } catch (error) {
       setMessage('خطأ: ' + error.message);
+    }
+  };
+
+  // دالة إعادة تعيين كلمة المرور
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      alert("تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني. يرجى التحقق من صندوق الوارد (أو البريد المزعج).");
+      setCurrentPage('account');
+    } catch (error) {
+      alert("خطأ: " + error.message);
     }
   };
 
@@ -327,7 +340,6 @@ function App() {
       return (
         <>
           <h2 style={{color: '#333', margin: '0 0 20px 0', textAlign: 'center'}}>المجموعات</h2>
-          {/* عرض الوكلاء في شبكة مثل الصفحة الرئيسية */}
           <div style={styles.agentsGrid}>
             {agents.map(agent => (
               <div key={agent.id} style={styles.agentCard} onClick={() => { setSelectedAgent(agent); setCurrentPage('agentDetails'); }}>
@@ -425,6 +437,7 @@ function App() {
               <button type="submit" style={styles.btnSubmit}>دخول</button>
             </form>
             {message && <p style={styles.messageBox}>{message}</p>}
+            <p style={styles.linkText} onClick={() => setCurrentPage('forgotPassword')}>نسيت كلمة المرور؟</p>
             <p style={styles.linkText} onClick={() => setCurrentPage('register')}>ليس لديك حساب؟ إنشاء حساب جديد</p>
           </div>
         );
@@ -441,6 +454,18 @@ function App() {
           </form>
           {message && <p style={styles.messageBox}>{message}</p>}
           <p style={styles.linkText} onClick={() => setCurrentPage('account')}>لديك حساب بالفعل؟ تسجيل الدخول</p>
+        </div>
+      );
+    } else if (currentPage === 'forgotPassword') {
+      return (
+        <div style={styles.formBox}>
+          <h2 style={styles.formTitle}>استعادة كلمة المرور</h2>
+          <p style={{textAlign: 'center', marginBottom: '20px', color: '#666', fontSize: '14px'}}>أدخل بريدك الإلكتروني وسنرسل لك رابطاً لإعادة تعيين كلمة المرور.</p>
+          <form onSubmit={handleResetPassword}>
+            <div style={styles.inputGroup}><FaEnvelope color="#666" /><input type="email" placeholder="البريد الإلكتروني" style={styles.input} value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required /></div>
+            <button type="submit" style={styles.btnSubmit}>إرسال الرابط</button>
+          </form>
+          <p style={styles.linkText} onClick={() => setCurrentPage('account')}>العودة لتسجيل الدخول</p>
         </div>
       );
     } else if (currentPage === 'showMyQR') {
