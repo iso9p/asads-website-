@@ -57,7 +57,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [resetEmail, setResetEmail] = useState(''); // متغير جديد
+  const [resetEmail, setResetEmail] = useState(''); 
   const [message, setMessage] = useState('');
 
   const primaryColor = '#0054e9';
@@ -142,7 +142,6 @@ function App() {
     }
   };
 
-  // دالة إعادة تعيين كلمة المرور
   const handleResetPassword = async (e) => {
     e.preventDefault();
     try {
@@ -258,7 +257,32 @@ function App() {
   const handleDeleteGift = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "gifts", id)); fetchAllData(); } };
   const handleAddAgent = async (e) => { e.preventDefault(); await addDoc(collection(db, "agents"), { name: newAgentName, location: newAgentLocation, image: newAgentImage }); fetchAllData(); setNewAgentName(''); setNewAgentLocation(''); setNewAgentImage(''); };
   const handleDeleteAgent = async (id) => { if(window.confirm("متأكد؟")) { await deleteDoc(doc(db, "agents", id)); fetchAllData(); } };
-  const handleAddProduct = async (e) => { e.preventDefault(); if (!selectedAgent) return; await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, image: newProductImage, agentId: selectedAgent.id }); alert("تمت الإضافة"); setNewProductName(''); setNewProductPrice(''); setNewProductImage(''); };
+  
+  // دالة إضافة منتج
+  const handleAddProduct = async (e) => { 
+    e.preventDefault(); 
+    if (!selectedAgent) return; 
+    await addDoc(collection(db, "products"), { name: newProductName, price: newProductPrice, image: newProductImage, agentId: selectedAgent.id }); 
+    alert("تمت الإضافة"); 
+    setNewProductName(''); 
+    setNewProductPrice(''); 
+    setNewProductImage(''); 
+    // تحديث قائمة المنتجات المعروضة
+    const q = query(collection(db, "products"), where("agentId", "==", selectedAgent.id));
+    const querySnapshot = await getDocs(q);
+    setAgentProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
+
+  // دالة حذف منتج (جديد)
+  const handleDeleteProduct = async (id) => {
+    if(window.confirm("هل أنت متأكد من حذف هذا المنتج؟")) {
+      await deleteDoc(doc(db, "products", id));
+      // تحديث القائمة
+      const q = query(collection(db, "products"), where("agentId", "==", selectedAgent.id));
+      const querySnapshot = await getDocs(q);
+      setAgentProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }
+  };
   
   const handleCompleteRequest = async (id) => {
     if(window.confirm("هل تم تسليم الهدية للعميل؟")) {
@@ -577,6 +601,20 @@ function App() {
                 <div style={styles.inputGroup}><input type="text" placeholder="رابط صورة المنتج" style={styles.input} value={newProductImage} onChange={(e) => setNewProductImage(e.target.value)} /></div>
                 <button type="submit" style={{...styles.btnSubmit, backgroundColor: '#FF9800'}}><FaPlus /> إضافة المنتج</button>
               </form>
+            )}
+            {/* قائمة منتجات الوكيل مع الحذف */}
+            {selectedAgent && (
+              <div style={{marginTop: '20px'}}>
+                <h4 style={{borderBottom: '1px solid #eee', paddingBottom: '5px', marginBottom: '10px'}}>منتجات {selectedAgent.name}</h4>
+                {agentProducts.length === 0 ? <p style={{fontSize: '12px', color: '#888'}}>لا توجد منتجات لهذا الوكيل.</p> : (
+                  agentProducts.map(p => (
+                    <div key={p.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '8px 0'}}>
+                      <span style={{fontSize: '14px'}}>{p.name} ({p.price})</span>
+                      <button style={styles.btnDelete} onClick={() => handleDeleteProduct(p.id)}><FaTrash /></button>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
 
