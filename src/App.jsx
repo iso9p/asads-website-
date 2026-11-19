@@ -4,11 +4,11 @@ import {
   IoGrid, IoGridOutline, IoNotificationsOutline, IoMenuOutline, IoQrCodeOutline,
   IoStorefrontOutline, IoLogoWhatsapp, IoMailOutline, IoLockClosedOutline,
   IoPersonAddOutline, IoTrashOutline, IoAdd, IoSettingsOutline, IoLogOutOutline,
-  IoCheckmarkCircle, IoTimeOutline, IoScanOutline, IoIdCardOutline, IoSparkles
+  IoCheckmarkCircle, IoTimeOutline, IoPeopleOutline, IoSearchOutline, IoScanOutline, IoIdCardOutline, IoSparkles
 } from 'react-icons/io5';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy, writeBatch, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy, limit, writeBatch, onSnapshot } from "firebase/firestore";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -84,6 +84,10 @@ function App() {
   const [adminPointsToAdd, setAdminPointsToAdd] = useState('');
   const [scannedUserId, setScannedUserId] = useState(null);
   const [scannedUserName, setScannedUserName] = useState('');
+  const [scannedName, setScannedName] = useState('');
+  const [clientsList, setClientsList] = useState([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -143,24 +147,37 @@ function App() {
   }, [user]);
 
   const fetchAllData = async () => {
+    // بيانات عامة (للجميع)
     const giftsSnapshot = await getDocs(collection(db, "gifts"));
     setGifts(giftsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
     const agentsSnapshot = await getDocs(collection(db, "agents"));
     setAgents(agentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
-    const reqSnapshot = await getDocs(q);
-    setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    // بيانات الإدارة (للمسؤول فقط، حسب قواعد Firestore)
+    if (auth.currentUser && auth.currentUser.email === ADMIN_EMAIL) {
+      try {
+        const q = query(collection(db, "redeem_requests"), orderBy("createdAt", "desc"));
+        const reqSnapshot = await getDocs(q);
+        setRedeemRequests(reqSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"));
-    const tSnapshot = await getDocs(tq);
-    setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const tq = query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(50));
+        const tSnapshot = await getDocs(tq);
+        setAllTransactions(tSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (error) {
+        console.error("admin data error:", error);
+      }
+    }
   };
 
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // عند تسجيل دخول المسؤول: حمّل بيانات الإدارة
+  useEffect(() => {
+    if (user && user.email === ADMIN_EMAIL) fetchAllData();
+  }, [user]);
 
   useEffect(() => {
     if (selectedAgent) {
@@ -188,8 +205,12 @@ function App() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       // حفظ اسم المستخدم مع حسابه
-      await setDoc(doc(db, "users", cred.user.uid), { name: name.trim(), email: cred.user.email }, { merge: true });
-      setUserName(name.trim());
+      try {
+        await setDoc(doc(db, "users", cred.user.uid), { name: name.trim(), email: cred.user.email, points: 0 }, { merge: true });
+        setUserName(name.trim());
+      } catch (nameError) {
+        console.error("save name error:", nameError);
+      }
       setMessage('تم إنشاء الحساب بنجاح!');
       setCurrentPage('account');
     } catch (error) {
@@ -257,6 +278,8 @@ function App() {
   const startAdminScanner = () => {
     setCurrentPage('adminScanner');
     setScannedUserId(null);
+    setScannedUserName('');
+    setScannedName('');
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner("admin-reader", { fps: 10, qrbox: 250 });
       scanner.render((decodedText) => {
@@ -274,11 +297,36 @@ function App() {
     }, 100);
   };
 
+  // اختيار عميل من القائمة بدل المسح بالباركود (للمسؤول)
+  const openClientsPage = async () => {
+    setClientSearch('');
+    setCurrentPage('adminClients');
+    setClientsLoading(true);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      setClientsList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error) {
+      console.error("fetch clients error:", error);
+      alert("تعذر تحميل قائمة العملاء: " + (error.code || error.message));
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
+  const selectClient = (c) => {
+    setScannedUserId(c.id);
+    setScannedUserName(c.email || 'مستخدم');
+    setScannedName(c.name || '');
+    setAdminPointsToAdd('');
+    setCurrentPage('adminGivePoints');
+  };
+
   const fetchClientName = async (uid) => {
     const docRef = doc(db, "users", uid);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       setScannedUserName(docSnap.data().email || 'مستخدم');
+      setScannedName(docSnap.data().name || '');
     }
   };
 
@@ -294,9 +342,10 @@ function App() {
       batch.set(doc(collection(db, "transactions")), {
         userId: scannedUserId,
         userEmail: scannedUserName || '',
+        userName: scannedName || '',
         amount: pts,
-        type: "إضافة نقاط",
-        details: `تم إضافة ${pts} نقطة بواسطة الإدارة`,
+        type: "تحويل نقاط",
+        details: `تم تحويل ${pts} نقطة إلى ${scannedName || scannedUserName || 'العميل'}`,
         createdAt: new Date()
       });
       await batch.commit();
@@ -591,11 +640,39 @@ function App() {
           <button onClick={() => setCurrentPage('admin')} style={{...styles.btnSubmit, marginTop: '20px', background: 'rgba(229,72,77,0.1)', color: dangerColor}}>إلغاء</button>
         </div>
       );
+    } else if (currentPage === 'adminClients') {
+      const term = clientSearch.trim().toLowerCase();
+      const filtered = clientsList
+        .filter(c => (c.name || '').toLowerCase().includes(term) || (c.email || '').toLowerCase().includes(term))
+        .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+      return (
+        <div>
+          <h2 style={pageTitle}>اختيار عميل</h2>
+          <div className="am-field" style={styles.inputGroup}>
+            <IoSearchOutline size={20} color={mutedColor} />
+            <input type="text" placeholder="ابحث بالاسم أو البريد" style={styles.input} value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} />
+          </div>
+          {clientsLoading ? <p style={{textAlign: 'center', color: mutedColor}}>جاري التحميل...</p> : (
+            filtered.length === 0 ? <p style={{textAlign: 'center', color: mutedColor}}>لا يوجد عملاء مطابقون.</p> : (
+              filtered.map(c => (
+                <div key={c.id} className="am-tap" style={{...styles.giftCard, cursor: 'pointer'}} onClick={() => selectClient(c)}>
+                  <div>
+                    <p style={styles.giftTitle}>{c.name || 'بدون اسم'}</p>
+                    <p style={{margin: 0, fontSize: '12px', color: mutedColor, wordBreak: 'break-all'}}>{c.email}</p>
+                  </div>
+                  <span style={{...styles.giftPoints, whiteSpace: 'nowrap'}}><IoSparkles /> {c.points || 0}</span>
+                </div>
+              ))
+            )
+          )}
+          <button onClick={() => setCurrentPage('admin')} style={{...styles.btnSubmit, marginTop: '10px', background: 'rgba(229,72,77,0.1)', color: dangerColor}}>رجوع</button>
+        </div>
+      );
     } else if (currentPage === 'adminGivePoints') {
       return (
         <div style={styles.formBox}>
           <h2 style={styles.formTitle}>إضافة نقاط للعميل</h2>
-          <p style={{textAlign: 'center', marginBottom: '20px', color: mutedColor, wordBreak: 'break-all'}}>العميل: {scannedUserName}</p>
+          <p style={{textAlign: 'center', marginBottom: '20px', color: mutedColor, wordBreak: 'break-all'}}>العميل: {scannedName ? `${scannedName} - ` : ''}{scannedUserName}</p>
           <form onSubmit={handleGivePointsToClient}>
             <div className="am-field" style={styles.inputGroup}>
               <input type="number" placeholder="عدد النقاط المراد إضافتها" style={{...styles.input, marginInlineStart: 0}} value={adminPointsToAdd} onChange={(e) => setAdminPointsToAdd(e.target.value)} required />
@@ -631,6 +708,7 @@ function App() {
           <div style={{...styles.adminBox, background: `linear-gradient(135deg, ${primaryColor}, #2d7bff)`}}>
             <h3 style={{...styles.adminTitle, color: '#fff'}}><IoScanOutline size={22} /> شاشة المسح للمسؤول</h3>
             <button style={{...styles.btnSubmit, background: '#fff', color: primaryColor}} onClick={startAdminScanner}><IoQrCodeOutline size={20} /> فتح الماسح</button>
+            <button style={{...styles.btnSubmit, background: 'rgba(255,255,255,0.2)', marginTop: '10px'}} onClick={openClientsPage}><IoPeopleOutline size={20} /> اختيار عميل من القائمة</button>
           </div>
 
           <div style={styles.adminBox}>
@@ -707,7 +785,7 @@ function App() {
               allTransactions.map(t => (
                 <div key={t.id} style={{...styles.transactionCard, background: '#f7f9fd', boxShadow: 'none', borderRightColor: t.amount > 0 ? successColor : dangerColor}}>
                   <div>
-                    <p style={{margin: '0 0 4px 0', fontWeight: 700, fontSize: '13px', wordBreak: 'break-all'}}>{t.userEmail}</p>
+                    <p style={{margin: '0 0 4px 0', fontWeight: 700, fontSize: '13px', wordBreak: 'break-all'}}>{t.userName ? `${t.userName} - ` : ''}{t.userEmail}</p>
                     <p style={{margin: 0, fontSize: '12px', fontWeight: 700, color: t.amount > 0 ? successColor : dangerColor}}>{t.type} ({t.amount > 0 ? `+${t.amount}` : t.amount})</p>
                     <p style={{margin: '5px 0 0 0', fontSize: '11px', color: '#a0a8bd'}}>{formatDate(t.createdAt)}</p>
                   </div>
