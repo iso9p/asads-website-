@@ -8,7 +8,7 @@ import {
 } from 'react-icons/io5';
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, deleteDoc, query, where, increment, orderBy, writeBatch, onSnapshot } from "firebase/firestore";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -56,6 +56,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [user, setUser] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
+  const [userName, setUserName] = useState('');
 
   const [isRedeeming, setIsRedeeming] = useState(false);
 
@@ -98,24 +99,48 @@ function App() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setUserPoints(docSnap.data().points || 0);
+          setUserName(docSnap.data().name || '');
         } else {
-          await setDoc(docRef, { points: 0, email: currentUser.email });
+          await setDoc(docRef, { points: 0, email: currentUser.email }, { merge: true });
           setUserPoints(0);
+          setUserName('');
         }
         fetchMyTransactions(currentUser.uid);
       } else {
         setUserPoints(0);
+        setUserName('');
         setMyTransactions([]);
       }
     });
     return () => unsubscribe();
   }, []);
 
+  const sortByDateDesc = (list) => list.sort((a, b) => {
+    const da = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+    const dbb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+    return dbb - da;
+  });
+
   const fetchMyTransactions = async (uid) => {
-    const q = query(collection(db, "transactions"), where("userId", "==", uid), orderBy("createdAt", "desc"));
-    const querySnapshot = await getDocs(q);
-    setMyTransactions(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    try {
+      const q = query(collection(db, "transactions"), where("userId", "==", uid));
+      const querySnapshot = await getDocs(q);
+      setMyTransactions(sortByDateDesc(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    } catch (error) {
+      console.error("fetchMyTransactions error:", error);
+    }
   };
+
+  // تحديث فوري لإشعارات العميل بدون الحاجة لإعادة فتح التطبيق
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "transactions"), where("userId", "==", user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      setMyTransactions(sortByDateDesc(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      getDoc(doc(db, "users", user.uid)).then(s => { if (s.exists()) setUserPoints(s.data().points || 0); });
+    }, (error) => console.error("transactions listener error:", error));
+    return () => unsub();
+  }, [user]);
 
   const fetchAllData = async () => {
     const giftsSnapshot = await getDocs(collection(db, "gifts"));
@@ -161,7 +186,10 @@ function App() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // حفظ اسم المستخدم مع حسابه
+      await setDoc(doc(db, "users", cred.user.uid), { name: name.trim(), email: cred.user.email }, { merge: true });
+      setUserName(name.trim());
       setMessage('تم إنشاء الحساب بنجاح!');
       setCurrentPage('account');
     } catch (error) {
@@ -198,6 +226,7 @@ function App() {
 
       await addDoc(collection(db, "redeem_requests"), {
         userEmail: user.email,
+        userName: userName || '',
         userId: user.uid,
         giftName: gift.title,
         giftCost: gift.cost,
@@ -256,27 +285,30 @@ function App() {
   const handleGivePointsToClient = async (e) => {
     e.preventDefault();
     if (!scannedUserId || !adminPointsToAdd) return;
+    const pts = parseInt(adminPointsToAdd);
+    if (!pts || isNaN(pts)) return alert("أدخل عدد نقاط صحيح.");
     try {
-      await updateDoc(doc(db, "users", scannedUserId), {
-        points: increment(parseInt(adminPointsToAdd))
-      });
-
-      await addDoc(collection(db, "transactions"), {
+      // عملية واحدة: إما أن تنجح النقاط والإشعار معاً أو تفشل معاً
+      const batch = writeBatch(db);
+      batch.update(doc(db, "users", scannedUserId), { points: increment(pts) });
+      batch.set(doc(collection(db, "transactions")), {
         userId: scannedUserId,
-        userEmail: scannedUserName,
-        amount: parseInt(adminPointsToAdd),
+        userEmail: scannedUserName || '',
+        amount: pts,
         type: "إضافة نقاط",
-        details: `تم إضافة ${adminPointsToAdd} نقطة بواسطة الإدارة`,
+        details: `تم إضافة ${pts} نقطة بواسطة الإدارة`,
         createdAt: new Date()
       });
+      await batch.commit();
 
-      alert(`تم إضافة ${adminPointsToAdd} نقطة للعميل بنجاح!`);
+      alert(`تم إضافة ${pts} نقطة للعميل بنجاح!`);
       setAdminPointsToAdd('');
       setScannedUserId(null);
       setCurrentPage('admin');
       fetchAllData();
     } catch (error) {
-      alert("حدث خطأ أثناء إضافة النقاط.");
+      console.error("give points error:", error);
+      alert("حدث خطأ أثناء إضافة النقاط: " + (error.code || error.message));
     }
   };
 
@@ -584,7 +616,8 @@ function App() {
               redeemRequests.map(req => (
                 <div key={req.id} style={styles.requestCard}>
                   <div>
-                    <p style={{margin: '0 0 4px 0', fontWeight: 700, fontSize: '14px', wordBreak: 'break-all'}}>{req.userEmail}</p>
+                    <p style={{margin: '0 0 2px 0', fontWeight: 800, fontSize: '15px'}}>{req.userName || 'بدون اسم'}</p>
+                    <p style={{margin: '0 0 4px 0', fontWeight: 600, fontSize: '13px', color: mutedColor, wordBreak: 'break-all'}}>{req.userEmail}</p>
                     <p style={{margin: 0, fontSize: '13px', color: mutedColor}}>طلب: {req.giftName} ({req.giftCost} نقطة)</p>
                   </div>
                   <button style={styles.btnComplete} onClick={() => handleCompleteRequest(req.id)}>
